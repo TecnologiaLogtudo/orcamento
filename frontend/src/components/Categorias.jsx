@@ -245,7 +245,7 @@ export default function Categorias() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Master</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Centro de custo</label>
                     <input
                       type="text"
                       value={formData.master}
