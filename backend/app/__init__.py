@@ -21,6 +21,13 @@ def create_app(config_name='default'):
     db.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173"]}}, supports_credentials=True)
     jwt = JWTManager(app)
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(_, payload):
+        from app.models import TokenBlacklist
+        jti = payload['jti']
+        token = TokenBlacklist.query.filter_by(jti=jti).first()
+        return token is not None
     
     # Criar diretórios necessários
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -42,7 +49,7 @@ def create_app(config_name='default'):
         from app.models import TokenBlacklist
         jti = payload['jti']
         token = TokenBlacklist.query.filter_by(jti=jti).first()
-        return bool(token)
+        return token is not None
 
     # Handlers de erro JWT
     @jwt.expired_token_loader

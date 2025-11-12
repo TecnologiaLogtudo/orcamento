@@ -190,3 +190,13 @@ class ResumoOrcamento(db.Model):
             'total_realizado': float(self.total_realizado) if self.total_realizado else 0.0,
             'total_dif': float(self.total_dif) if self.total_dif else 0.0
         }
+
+class TokenBlacklist(db.Model):
+    __tablename__ = 'token_blacklist'
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<TokenBlacklist {self.jti}>'
