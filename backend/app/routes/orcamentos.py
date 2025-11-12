@@ -263,7 +263,7 @@ def aprovar_orcamento(id_orcamento):
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
         
-        if current_user.papel not in ['gestor', 'admin']:
+        if current_user.papel != 'gestor':
             return jsonify({'error': 'Acesso negado'}), 403
         
         orcamento = Orcamento.query.get(id_orcamento)

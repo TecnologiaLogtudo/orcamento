@@ -1,9 +1,27 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event, text, TypeDecorator
+from sqlalchemy.orm import attributes
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text
+import json
 
 db = SQLAlchemy()
+
+class JsonEncodedDict(TypeDecorator):
+    """Enables JSON storage by encoding and decoding on the fly."""
+    impl = db.Text
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return json.loads(value)
+
+
 
 class Usuario(db.Model):
     __tablename__ = 'usuarios'
@@ -84,7 +102,7 @@ class Orcamento(db.Model):
     ano = db.Column(db.Integer, nullable=False)
     orcado = db.Column(db.Numeric(15, 2), default=0.00)
     realizado = db.Column(db.Numeric(15, 2), default=0.00)
-    dif = db.Column(db.Numeric(15, 2), db.Computed('(realizado - orcado)'))
+    dif = db.Column(db.Numeric(15, 2), default=0.00)
     
     status = db.Column(db.Enum('rascunho', 'aguardando_aprovacao', 'aprovado'), default='rascunho')
     aprovado_por = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario', ondelete='SET NULL'))
@@ -137,7 +155,7 @@ class Log(db.Model):
     tabela_afetada = db.Column(db.String(50))
     id_registro = db.Column(db.Integer)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    detalhes = db.Column(db.JSON)
+    detalhes = db.Column(JsonEncodedDict)
     
     # Relacionamentos
     usuario = db.relationship('Usuario', back_populates='logs')
@@ -200,3 +218,11 @@ class TokenBlacklist(db.Model):
 
     def __repr__(self):
         return f'<TokenBlacklist {self.jti}>'
+
+@event.listens_for(Orcamento, 'before_insert')
+@event.listens_for(Orcamento, 'before_update')
+def calculate_dif(mapper, connection, target):
+    if target.realizado is not None and target.orcado is not None:
+        target.dif = target.realizado - target.orcado
+    else:
+        target.dif = 0
