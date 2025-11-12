@@ -29,22 +29,16 @@ export default function Login() {
     setError('');
     setLoading(true);
 
-    const result = await login(formData.email, formData.senha);
+    try {
+      const result = await login(formData.email, formData.senha);
 
-      if (result.access_token) {
-        localStorage.setItem('token', result.access_token);
-        localStorage.setItem('user', JSON.stringify(result.usuario));
-        authAPI.setAuthToken(result.access_token);
+      if (result.success) {
         navigate('/dashboard');
       } else {
-        alert('Erro ao fazer login.');
-      
-      localStorage.setItem('user', JSON.stringify(result.usuario));
-
-      // Agora sim, define o token nos headers
-      authAPI.setAuthToken(result.access_token);
-
-      navigate('/dashboard');
+        setError(result.error || 'Ocorreu um erro inesperado.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
