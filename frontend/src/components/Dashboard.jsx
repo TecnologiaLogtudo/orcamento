@@ -41,14 +41,13 @@ export default function Dashboard() {
     ano: new Date().getFullYear()
   });
   const [filtrosDisponiveis, setFiltrosDisponiveis] = useState({
-    donos: [],
-    tipos_despesa: [],
+    categorias: [],
     ufs: [],
     grupos: []
   });
 
   useEffect(() => {
-    // Carrega os filtros disponíveis (donos, tipos, etc) uma vez
+    // Carrega os filtros disponíveis (categorias, etc) uma vez
     loadFiltrosDisponiveis();
   }, []);
 
@@ -192,24 +191,13 @@ export default function Dashboard() {
             </select>
 
             <select
-              value={filtros.dono || ''}
-              onChange={(e) => handleFilterChange('dono', e.target.value)}
+              value={filtros.categoria || ''}
+              onChange={(e) => handleFilterChange('categoria', e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="">Todos os Donos</option>
-              {filtrosDisponiveis.donos.map(dono => (
-                <option key={dono} value={dono}>{dono}</option>
-              ))}
-            </select>
-
-            <select
-              value={filtros.tipo_despesa || ''}
-              onChange={(e) => handleFilterChange('tipo_despesa', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">Todos os Tipos</option>
-              {filtrosDisponiveis.tipos_despesa.map(tipo => (
-                <option key={tipo} value={tipo}>{tipo}</option>
+              <option value="">Todas as Categorias</option>
+              {filtrosDisponiveis.categorias.map(categoria => (
+                <option key={categoria} value={categoria}>{categoria}</option>
               ))}
             </select>
           </div>
@@ -336,7 +324,7 @@ export default function Dashboard() {
         {/* Top 5 Grupos Críticos */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Top 5 Grupos com Maior Desvio
+            Desempenho por Categoria
           </h2>
           <div className="space-y-3">
             {dashboardData?.grupos_criticos?.map((grupo, index) => (

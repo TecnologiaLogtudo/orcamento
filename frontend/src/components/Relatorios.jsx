@@ -66,13 +66,13 @@ export default function Relatorios() {
           </select>
 
           <select
-            value={filtros.dono || ''}
-            onChange={(e) => setFiltros({...filtros, dono: e.target.value})}
+            value={filtros.categoria || ''}
+            onChange={(e) => setFiltros({...filtros, categoria: e.target.value})}
             className="px-4 py-2 border rounded-lg"
           >
-            <option value="">Todos os Donos</option>
-            {filtrosDisponiveis.donos?.map(d => (
-              <option key={d} value={d}>{d}</option>
+            <option value="">Todas as Categorias</option>
+            {filtrosDisponiveis.categorias?.map(c => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
 
@@ -111,7 +111,7 @@ export default function Relatorios() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dono</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grupo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mês</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Orçado</th>
@@ -122,7 +122,7 @@ export default function Relatorios() {
             <tbody className="bg-white divide-y divide-gray-200">
               {dados.map((item, index) => (
                 <tr key={index}>
-                  <td className="px-6 py-4 text-sm">{item.dono}</td>
+                  <td className="px-6 py-4 text-sm">{item.categoria}</td>
                   <td className="px-6 py-4 text-sm">{item.grupo}</td>
                   <td className="px-6 py-4 text-sm">{item.mes}</td>
                   <td className="px-6 py-4 text-sm text-right">

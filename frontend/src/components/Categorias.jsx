@@ -9,8 +9,7 @@ export default function Categorias() {
   const [editingCategoria, setEditingCategoria] = useState(null);
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState({
-    dono: '',
-    tipo_despesa: '',
+    categoria: '',
     uf: '',
     master: '',
     grupo: '',
@@ -55,8 +54,7 @@ export default function Categorias() {
   const handleEdit = (categoria) => {
     setEditingCategoria(categoria);
     setFormData({
-      dono: categoria.dono,
-      tipo_despesa: categoria.tipo_despesa,
+      categoria: categoria.categoria,
       uf: categoria.uf || '',
       master: categoria.master || '',
       grupo: categoria.grupo || '',
@@ -97,8 +95,7 @@ export default function Categorias() {
 
   const resetForm = () => {
     setFormData({
-      dono: '',
-      tipo_despesa: '',
+      categoria: '',
       uf: '',
       master: '',
       grupo: '',
@@ -149,7 +146,7 @@ export default function Categorias() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Buscar por dono, grupo ou classe..."
+              placeholder="Buscar por categoria, grupo ou classe..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -169,8 +166,7 @@ export default function Categorias() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dono</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UF</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grupo</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cód. Classe</th>
@@ -181,8 +177,7 @@ export default function Categorias() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {categorias.map((categoria) => (
                   <tr key={categoria.id_categoria} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{categoria.dono}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{categoria.tipo_despesa}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{categoria.categoria}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{categoria.uf || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{categoria.grupo || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{categoria.cod_class || '-'}</td>
@@ -228,26 +223,13 @@ export default function Categorias() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Dono *
+                      Categoria *
                     </label>
                     <input
                       type="text"
                       required
-                      value={formData.dono}
-                      onChange={(e) => setFormData({...formData, dono: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo Despesa *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.tipo_despesa}
-                      onChange={(e) => setFormData({...formData, tipo_despesa: e.target.value})}
+                      value={formData.categoria}
+                      onChange={(e) => setFormData({...formData, categoria: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>

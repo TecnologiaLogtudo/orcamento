@@ -61,8 +61,7 @@ class Categoria(db.Model):
     __tablename__ = 'categorias'
     
     id_categoria = db.Column(db.Integer, primary_key=True)
-    dono = db.Column(db.String(100), nullable=False)
-    tipo_despesa = db.Column(db.String(50), nullable=False)
+    categoria = db.Column(db.String(100), nullable=False)
     uf = db.Column(db.String(20))
     master = db.Column(db.String(100))
     grupo = db.Column(db.String(100))
@@ -74,15 +73,14 @@ class Categoria(db.Model):
     orcamentos = db.relationship('Orcamento', back_populates='categoria', lazy='dynamic', cascade='all, delete-orphan')
     
     __table_args__ = (
-        db.UniqueConstraint('dono', 'grupo', 'cod_class', 'tipo_despesa', name='unique_categoria'),
+        db.UniqueConstraint('categoria', 'grupo', 'cod_class', name='unique_categoria'),
     )
     
     def to_dict(self):
         """Converte para dicionário"""
         return {
             'id_categoria': self.id_categoria,
-            'dono': self.dono,
-            'tipo_despesa': self.tipo_despesa,
+            'categoria': self.categoria,
             'uf': self.uf,
             'master': self.master,
             'grupo': self.grupo,
@@ -179,8 +177,7 @@ class ResumoOrcamento(db.Model):
     __table_args__ = {'info': {'is_view': True}}
     
     # Como é uma view, precisamos definir uma primary key artificial
-    dono = db.Column(db.String(100), primary_key=True)
-    tipo_despesa = db.Column(db.String(50), primary_key=True)
+    categoria = db.Column(db.String(100), primary_key=True)
     uf = db.Column(db.String(20))
     master = db.Column(db.String(100))
     grupo = db.Column(db.String(100), primary_key=True)
@@ -195,8 +192,7 @@ class ResumoOrcamento(db.Model):
     def to_dict(self):
         """Converte para dicionário"""
         return {
-            'dono': self.dono,
-            'tipo_despesa': self.tipo_despesa,
+            'categoria': self.categoria,
             'uf': self.uf,
             'master': self.master,
             'grupo': self.grupo,

@@ -12,18 +12,15 @@ def list_categorias():
     """Lista categorias com filtros opcionais"""
     try:
         # Filtros
-        dono = request.args.get('dono')
-        tipo_despesa = request.args.get('tipo_despesa')
+        categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
         search = request.args.get('search')
         
         query = Categoria.query
         
-        if dono:
-            query = query.filter_by(dono=dono)
-        if tipo_despesa:
-            query = query.filter_by(tipo_despesa=tipo_despesa)
+        if categoria:
+            query = query.filter_by(categoria=categoria)
         if uf:
             query = query.filter_by(uf=uf)
         if grupo:
@@ -31,13 +28,13 @@ def list_categorias():
         if search:
             query = query.filter(
                 or_(
-                    Categoria.dono.like(f'%{search}%'),
+                    Categoria.categoria.like(f'%{search}%'),
                     Categoria.grupo.like(f'%{search}%'),
                     Categoria.classe_custo.like(f'%{search}%')
                 )
             )
         
-        categorias = query.order_by(Categoria.dono, Categoria.grupo).all()
+        categorias = query.order_by(Categoria.categoria, Categoria.grupo).all()
         
         return jsonify([c.to_dict() for c in categorias]), 200
         
@@ -73,17 +70,16 @@ def create_categoria():
         data = request.get_json()
         
         # Validações
-        required_fields = ['dono', 'tipo_despesa']
+        required_fields = ['categoria']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Campo {field} é obrigatório'}), 400
         
         # Verificar duplicidade
         existing = Categoria.query.filter_by(
-            dono=data['dono'],
+            categoria=data['categoria'],
             grupo=data.get('grupo'),
-            cod_class=data.get('cod_class'),
-            tipo_despesa=data['tipo_despesa']
+            cod_class=data.get('cod_class')
         ).first()
         
         if existing:
@@ -91,8 +87,7 @@ def create_categoria():
         
         # Criar categoria
         categoria = Categoria(
-            dono=data['dono'],
-            tipo_despesa=data['tipo_despesa'],
+            categoria=data['categoria'],
             uf=data.get('uf'),
             master=data.get('master'),
             grupo=data.get('grupo'),
@@ -139,10 +134,8 @@ def update_categoria(id_categoria):
         dados_antigos = categoria.to_dict()
         
         # Atualizar campos
-        if 'dono' in data:
-            categoria.dono = data['dono']
-        if 'tipo_despesa' in data:
-            categoria.tipo_despesa = data['tipo_despesa']
+        if 'categoria' in data:
+            categoria.categoria = data['categoria']
         if 'uf' in data:
             categoria.uf = data['uf']
         if 'master' in data:
@@ -245,7 +238,7 @@ def import_categorias():
         df = pd.read_excel(file)
         
         # Validar colunas obrigatórias
-        required_columns = ['dono', 'tipo_despesa']
+        required_columns = ['categoria']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -261,10 +254,9 @@ def import_categorias():
             try:
                 # Verificar se já existe
                 existing = Categoria.query.filter_by(
-                    dono=row['dono'],
+                    categoria=row['categoria'],
                     grupo=row.get('grupo'),
-                    cod_class=row.get('cod_class'),
-                    tipo_despesa=row['tipo_despesa']
+                    cod_class=row.get('cod_class')
                 ).first()
                 
                 if existing:
@@ -272,8 +264,7 @@ def import_categorias():
                     continue
                 
                 categoria = Categoria(
-                    dono=row['dono'],
-                    tipo_despesa=row['tipo_despesa'],
+                    categoria=row['categoria'],
                     uf=row.get('uf'),
                     master=row.get('master'),
                     grupo=row.get('grupo'),
@@ -319,14 +310,12 @@ def import_categorias():
 def get_filtros():
     """Retorna valores únicos para filtros"""
     try:
-        donos = db.session.query(Categoria.dono).distinct().order_by(Categoria.dono).all()
-        tipos = db.session.query(Categoria.tipo_despesa).distinct().order_by(Categoria.tipo_despesa).all()
+        categorias = db.session.query(Categoria.categoria).distinct().order_by(Categoria.categoria).all()
         ufs = db.session.query(Categoria.uf).distinct().order_by(Categoria.uf).all()
         grupos = db.session.query(Categoria.grupo).distinct().order_by(Categoria.grupo).all()
         
         return jsonify({
-            'donos': [d[0] for d in donos if d[0]],
-            'tipos_despesa': [t[0] for t in tipos if t[0]],
+            'categorias': [c[0] for c in categorias if c[0]],
             'ufs': [u[0] for u in ufs if u[0]],
             'grupos': [g[0] for g in grupos if g[0]]
         }), 200

@@ -16,8 +16,7 @@ def get_relatorios():
     try:
         # Filtros
         ano = request.args.get('ano', type=int)
-        dono = request.args.get('dono')
-        tipo_despesa = request.args.get('tipo_despesa')
+        categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
         mes = request.args.get('mes')
@@ -28,10 +27,8 @@ def get_relatorios():
         # Aplicar filtros
         if ano:
             query = query.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query = query.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query = query.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
         if grupo:
@@ -42,7 +39,7 @@ def get_relatorios():
         # Ordenar
         resultados = query.order_by(
             ResumoOrcamento.ano.desc(),
-            ResumoOrcamento.dono,
+            ResumoOrcamento.categoria,
             ResumoOrcamento.grupo
         ).all()
         
@@ -75,7 +72,7 @@ def get_relatorio_detalhado():
         
         resultados = query.order_by(
             Orcamento.ano.desc(),
-            Categoria.dono,
+            Categoria.categoria,
             Orcamento.mes
         ).all()
         
@@ -99,8 +96,7 @@ def export_excel():
     try:
         # Obter filtros
         ano = request.args.get('ano', type=int)
-        dono = request.args.get('dono')
-        tipo_despesa = request.args.get('tipo_despesa')
+        categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
         
@@ -109,10 +105,8 @@ def export_excel():
         
         if ano:
             query = query.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query = query.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query = query.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
         if grupo:
@@ -122,8 +116,7 @@ def export_excel():
         
         # Converter para DataFrame
         dados = [{
-            'Dono': r.dono,
-            'Tipo Despesa': r.tipo_despesa,
+            'Categoria': r.categoria,
             'UF': r.uf,
             'Master': r.master,
             'Grupo': r.grupo,
@@ -206,8 +199,7 @@ def export_pdf():
         
         # Obter filtros
         ano = request.args.get('ano', type=int)
-        dono = request.args.get('dono')
-        tipo_despesa = request.args.get('tipo_despesa')
+        categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
         
@@ -216,10 +208,8 @@ def export_pdf():
         
         if ano:
             query = query.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query = query.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query = query.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
         if grupo:
@@ -267,10 +257,8 @@ def export_pdf():
         filtros_aplicados = []
         if ano:
             filtros_aplicados.append(f"Ano: {ano}")
-        if dono:
-            filtros_aplicados.append(f"Dono: {dono}")
-        if tipo_despesa:
-            filtros_aplicados.append(f"Tipo: {tipo_despesa}")
+        if categoria:
+            filtros_aplicados.append(f"Categoria: {categoria}")
         if uf:
             filtros_aplicados.append(f"UF: {uf}")
         if grupo:
@@ -289,7 +277,7 @@ def export_pdf():
         elements.append(Spacer(1, 0.2*inch))
         
         # Tabela de dados
-        data = [['Dono', 'Grupo', 'Mês', 'Ano', 'Orçado', 'Realizado', 'Diferença']]
+        data = [['Categoria', 'Grupo', 'Mês', 'Ano', 'Orçado', 'Realizado', 'Diferença']]
         
         total_orcado = 0
         total_realizado = 0
@@ -305,7 +293,7 @@ def export_pdf():
             total_dif += dif
             
             data.append([
-                r.dono or '',
+                r.categoria or '',
                 r.grupo or '',
                 r.mes or '',
                 str(r.ano) or '',

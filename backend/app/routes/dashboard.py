@@ -13,8 +13,7 @@ def get_dashboard():
     try:
         # Filtros
         ano = request.args.get('ano', type=int)
-        dono = request.args.get('dono')
-        tipo_despesa = request.args.get('tipo_despesa')
+        categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
         
@@ -28,10 +27,8 @@ def get_dashboard():
         # Aplicar filtros
         if ano:
             query = query.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query = query.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query = query.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
         if grupo:
@@ -63,10 +60,8 @@ def get_dashboard():
         # Aplicar mesmos filtros
         if ano:
             query_mensal = query_mensal.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query_mensal = query_mensal.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query_mensal = query_mensal.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query_mensal = query_mensal.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query_mensal = query_mensal.filter(ResumoOrcamento.uf == uf)
         if grupo:
@@ -107,10 +102,8 @@ def get_dashboard():
         
         if ano:
             query_grupos = query_grupos.filter(ResumoOrcamento.ano == ano)
-        if dono:
-            query_grupos = query_grupos.filter(ResumoOrcamento.dono == dono)
-        if tipo_despesa:
-            query_grupos = query_grupos.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+        if categoria:
+            query_grupos = query_grupos.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query_grupos = query_grupos.filter(ResumoOrcamento.uf == uf)
         
@@ -127,33 +120,31 @@ def get_dashboard():
             for g in top_grupos
         ]
         
-        # Dados por centro de custo (dono)
-        query_donos = db.session.query(
-            ResumoOrcamento.dono,
+        # Dados por centro de custo (categoria)
+        query_centros_custo = db.session.query(
+            ResumoOrcamento.categoria,
             func.sum(ResumoOrcamento.total_orcado).label('orcado'),
             func.sum(ResumoOrcamento.total_realizado).label('realizado'),
             func.sum(ResumoOrcamento.total_dif).label('dif')
         )
         
         if ano:
-            query_donos = query_donos.filter(ResumoOrcamento.ano == ano)
-        if tipo_despesa:
-            query_donos = query_donos.filter(ResumoOrcamento.tipo_despesa == tipo_despesa)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.ano == ano)
         if uf:
-            query_donos = query_donos.filter(ResumoOrcamento.uf == uf)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.uf == uf)
         if grupo:
-            query_donos = query_donos.filter(ResumoOrcamento.grupo == grupo)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.grupo == grupo)
         
-        dados_por_dono = query_donos.group_by(ResumoOrcamento.dono).all()
+        dados_por_categoria = query_centros_custo.group_by(ResumoOrcamento.categoria).all()
         
         centros_custo = [
             {
-                'dono': d.dono,
+                'categoria': d.categoria,
                 'orcado': float(d.orcado) if d.orcado else 0.0,
                 'realizado': float(d.realizado) if d.realizado else 0.0,
                 'dif': float(d.dif) if d.dif else 0.0
             }
-            for d in dados_por_dono
+            for d in dados_por_categoria
         ]
         
         return jsonify({
