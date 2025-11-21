@@ -344,13 +344,13 @@ def import_categorias():
 def get_filtros():
     """Retorna valores únicos para filtros"""
     try:
-        categorias = db.session.query(Categoria.categoria).distinct().order_by(Categoria.categoria).all()
-        ufs = db.session.query(Categoria.uf).distinct().order_by(Categoria.uf).all()
-        masters = db.session.query(Categoria.master).distinct().order_by(Categoria.master).all()
-        grupos = db.session.query(Categoria.grupo).distinct().order_by(Categoria.grupo).all()
+        categorias = db.session.query(Categoria.categoria).distinct().order_by(Categoria.uf).all()
+        ufs = db.session.query(Categoria.uf).filter(Categoria.uf.isnot(None)).distinct().order_by(Categoria.uf).all()
+        masters = db.session.query(Categoria.master).filter(Categoria.master.isnot(None)).distinct().order_by(Categoria.master).all()
+        grupos = db.session.query(Categoria.grupo).filter(Categoria.grupo.isnot(None)).distinct().order_by(Categoria.grupo).all()
         
         return jsonify({
-            'categorias': [c[0] for c in categorias if c[0]],
+            'categorias': [c[0] for c in categorias if c[0]], # Garante que a lista de categorias seja retornada
             'ufs': [u[0] for u in ufs if u[0]],
             'masters': [m[0] for m in masters if m[0]], # Retorna os centros de custo
             'grupos': [g[0] for g in grupos if g[0]]

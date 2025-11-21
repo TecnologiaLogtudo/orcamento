@@ -100,6 +100,7 @@ export const categoriasAPI = {
 // ============= ORÇAMENTOS =============
 
 export const orcamentosAPI = {
+  getFiltros: async () => (await api.get('/orcamentos/filtros')).data,
   list: async (filtros = {}) => (await api.get('/orcamentos', { params: filtros })).data,
   getCategoriaAno: async (idCategoria, ano) =>
     (await api.get(`/orcamentos/categoria/${idCategoria}/ano/${ano}`)).data,

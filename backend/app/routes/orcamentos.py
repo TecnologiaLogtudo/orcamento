@@ -14,21 +14,33 @@ def list_orcamentos():
     """Lista orçamentos com filtros"""
     try:
         # Filtros
-        id_categoria = request.args.get('id_categoria', type=int)
         ano = request.args.get('ano', type=int)
         mes = request.args.get('mes')
         status = request.args.get('status')
+        uf = request.args.get('uf')
+        master = request.args.get('master') # Centro de Custo
+        id_categoria = request.args.get('id_categoria', type=int)
+        categoria_filter = request.args.get('categoria')
         
-        query = Orcamento.query
+        # Query com join para permitir filtros da tabela Categoria
+        query = db.session.query(Orcamento).join(Categoria)
         
-        if id_categoria:
-            query = query.filter_by(id_categoria=id_categoria)
         if ano:
-            query = query.filter_by(ano=ano)
+            query = query.filter(Orcamento.ano == ano)
         if mes:
-            query = query.filter_by(mes=mes)
+            query = query.filter(Orcamento.mes == mes)
         if status:
-            query = query.filter_by(status=status)
+            query = query.filter(Orcamento.status == status)
+        
+        # Filtros da tabela Categoria
+        if uf:
+            query = query.filter(Categoria.uf == uf)
+        if master:
+            query = query.filter(Categoria.master == master)
+        if id_categoria:
+            query = query.filter(Orcamento.id_categoria == id_categoria)
+        if categoria_filter:
+            query = query.filter(Categoria.categoria == categoria_filter)
         
         orcamentos = query.order_by(Orcamento.ano.desc(), 
                                     Orcamento.mes).all()
@@ -170,6 +182,31 @@ def create_or_update_orcamento():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/orcamentos/filtros', methods=['GET'])
+@jwt_required()
+def get_orcamento_filtros():
+    """Retorna valores únicos para os filtros da tela de lançamentos"""
+    try:
+        anos = db.session.query(Orcamento.ano).distinct().order_by(Orcamento.ano.desc()).all()
+        status = db.session.query(Orcamento.status).distinct().order_by(Orcamento.status).all()
+        
+        # Filtros que vêm da tabela de Categoria
+        ufs = db.session.query(Categoria.uf).distinct().order_by(Categoria.uf).all()
+        masters = db.session.query(Categoria.master).distinct().order_by(Categoria.master).all()
+        
+        # Lista de categorias distintas para o novo filtro
+        categorias_q = db.session.query(Categoria.categoria).distinct().order_by(Categoria.categoria).all()
+
+        return jsonify({
+            'anos': [a[0] for a in anos if a[0]],
+            'status': [s[0] for s in status if s[0]],
+            'ufs': [u[0] for u in ufs if u[0]],
+            'masters': [m[0] for m in masters if m[0]],
+            'categorias': [c[0] for c in categorias_q if c[0]]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/orcamentos/batch', methods=['POST'])
 @jwt_required()
 def batch_update_orcamentos():
@@ -212,7 +249,8 @@ def batch_update_orcamentos():
                         id_categoria=orc_data['id_categoria'],
                         mes=orc_data['mes'],
                         ano=orc_data['ano'],
-                        criado_por=user_id
+                        criado_por=user_id,
+                        status='rascunho' # Default status
                     )
                     db.session.add(orcamento)
                     created += 1
@@ -221,7 +259,7 @@ def batch_update_orcamentos():
                     orcamento.orcado = orc_data['orcado']
                 if 'realizado' in orc_data:
                     orcamento.realizado = orc_data['realizado']
-                if 'status' in orc_data:
+                if 'status' in orc_data and orc_data['status']:
                     orcamento.status = orc_data['status']
                 
             except Exception as e:
