@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Usuario, Categoria, Log
-from sqlalchemy import or_
+from sqlalchemy import or_, asc, desc
 import pandas as pd
 
 bp = Blueprint('categorias', __name__)
@@ -9,13 +9,18 @@ bp = Blueprint('categorias', __name__)
 @bp.route('/categorias', methods=['GET'])
 @jwt_required()
 def list_categorias():
-    """Lista categorias com filtros opcionais"""
+    """Lista categorias com filtros e ordenação opcionais"""
     try:
         # Filtros
         categoria = request.args.get('categoria')
         uf = request.args.get('uf')
         grupo = request.args.get('grupo')
+        master = request.args.get('master') # Filtro para Centro de Custo
         search = request.args.get('search')
+
+        # Ordenação
+        sort_by = request.args.get('sort_by', 'categoria')
+        sort_order = request.args.get('sort_order', 'asc')
         
         query = Categoria.query
         
@@ -25,6 +30,8 @@ def list_categorias():
             query = query.filter_by(uf=uf)
         if grupo:
             query = query.filter_by(grupo=grupo)
+        if master:
+            query = query.filter_by(master=master)
         if search:
             query = query.filter(
                 or_(
@@ -33,8 +40,20 @@ def list_categorias():
                     Categoria.classe_custo.like(f'%{search}%')
                 )
             )
+
+        # Mapeamento seguro de colunas para ordenação
+        sortable_columns = {
+            'categoria': Categoria.categoria,
+            'master': Categoria.master,
+            'uf': Categoria.uf,
+            'grupo': Categoria.grupo,
+            'cod_class': Categoria.cod_class,
+            'classe_custo': Categoria.classe_custo
+        }
+        sort_column = sortable_columns.get(sort_by, Categoria.categoria)
+        order_func = desc if sort_order == 'desc' else asc
         
-        categorias = query.order_by(Categoria.categoria, Categoria.grupo).all()
+        categorias = query.order_by(order_func(sort_column)).all()
         
         return jsonify([c.to_dict() for c in categorias]), 200
         
@@ -70,9 +89,9 @@ def create_categoria():
         data = request.get_json()
         
         # Validações
-        required_fields = ['categoria']
+        required_fields = ['categoria', 'master']
         for field in required_fields:
-            if field not in data:
+            if field not in data or not data[field]:
                 return jsonify({'error': f'Campo {field} é obrigatório'}), 400
         
         # Verificar duplicidade
@@ -251,34 +270,49 @@ def import_categorias():
         errors = []
         
         for index, row in df.iterrows():
+            # Inicia um ponto de salvamento (savepoint) para a transação atual.
+            # Isso permite reverter apenas a inserção da linha atual em caso de erro,
+            # sem invalidar a transação inteira.
+            db.session.begin_nested()
             try:
-                # Verificar se já existe
+                # Verificar se já existe uma categoria com a mesma combinação.
+                # A verificação agora considera todos os campos da linha para definir uma duplicata.
                 existing = Categoria.query.filter_by(
-                    categoria=row['categoria'],
-                    grupo=row.get('grupo'),
-                    cod_class=row.get('cod_class')
+                    categoria=row.get('categoria'),
+                    uf=str(row.get('uf')) if pd.notna(row.get('uf')) else None,
+                    master=str(row.get('master')) if pd.notna(row.get('master')) else None,
+                    grupo=str(row.get('grupo')) if pd.notna(row.get('grupo')) else None,
+                    cod_class=str(row.get('cod_class')) if pd.notna(row.get('cod_class')) else None,
+                    classe_custo=str(row.get('classe_custo')) if pd.notna(row.get('classe_custo')) else None
                 ).first()
                 
                 if existing:
-                    errors.append(f'Linha {index + 2}: Categoria já existe')
+                    # Se já existe, reverte o savepoint e continua para a próxima linha.
+                    db.session.rollback()
+                    errors.append(f'Linha {index + 2}: Categoria já existe (duplicada) e foi ignorada.')
                     continue
                 
                 categoria = Categoria(
-                    categoria=row['categoria'],
-                    uf=row.get('uf'),
-                    master=row.get('master'),
-                    grupo=row.get('grupo'),
-                    cod_class=row.get('cod_class'),
-                    classe_custo=row.get('classe_custo')
+                    categoria=row.get('categoria'),
+                    uf=str(row.get('uf')) if row.get('uf') else None,
+                    master=str(row.get('master')) if row.get('master') else None,
+                    grupo=str(row.get('grupo')) if row.get('grupo') else None,
+                    cod_class=str(row.get('cod_class')) if row.get('cod_class') else None,
+                    classe_custo=str(row.get('classe_custo')) if row.get('classe_custo') else None
                 )
                 
                 db.session.add(categoria)
+                db.session.commit() # Comita a linha atual
                 imported += 1
                 
             except Exception as e:
-                errors.append(f'Linha {index + 2}: {str(e)}')
-        
-        db.session.commit()
+                db.session.rollback() # Reverte a transação da linha atual em caso de erro
+                # Verifica se o erro é de duplicidade (IntegrityError)
+                if 'IntegrityError' in str(type(e.orig)):
+                    errors.append(f'Linha {index + 2}: Categoria já existe (duplicada) e foi ignorada.')
+                else:
+                    # Para outros tipos de erro, mostra a mensagem completa
+                    errors.append(f'Linha {index + 2}: {str(e)}')
         
         # Registrar no log
         log = Log(
@@ -312,11 +346,13 @@ def get_filtros():
     try:
         categorias = db.session.query(Categoria.categoria).distinct().order_by(Categoria.categoria).all()
         ufs = db.session.query(Categoria.uf).distinct().order_by(Categoria.uf).all()
+        masters = db.session.query(Categoria.master).distinct().order_by(Categoria.master).all()
         grupos = db.session.query(Categoria.grupo).distinct().order_by(Categoria.grupo).all()
         
         return jsonify({
             'categorias': [c[0] for c in categorias if c[0]],
             'ufs': [u[0] for u in ufs if u[0]],
+            'masters': [m[0] for m in masters if m[0]], # Retorna os centros de custo
             'grupos': [g[0] for g in grupos if g[0]]
         }), 200
         
