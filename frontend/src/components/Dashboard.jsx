@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI, categoriasAPI } from '../services/api';
+import { dashboardAPI } from '../services/api';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -41,13 +41,14 @@ export default function Dashboard() {
     ano: new Date().getFullYear()
   });
   const [filtrosDisponiveis, setFiltrosDisponiveis] = useState({
+    anos: [],
     categorias: [],
     ufs: [],
     grupos: []
   });
 
   useEffect(() => {
-    // Carrega os filtros disponíveis (categorias, etc) uma vez
+    // Carrega os filtros disponíveis (anos, categorias, UFs, grupos) uma vez
     loadFiltrosDisponiveis();
   }, []);
 
@@ -58,8 +59,15 @@ export default function Dashboard() {
 
   const loadFiltrosDisponiveis = async () => {
     try {
-      const data = await categoriasAPI.getFiltros();
+      const data = await dashboardAPI.getFiltros();
       setFiltrosDisponiveis(data);
+      // Se não houver ano nos filtros disponíveis, use o ano atual
+      if (data.anos && data.anos.length > 0 && !filtros.ano) {
+        setFiltros(prev => ({
+          ...prev,
+          ano: data.anos[0]
+        }));
+      }
     } catch (error) {
       console.error('Erro ao carregar filtros:', error);
     }
@@ -70,7 +78,7 @@ export default function Dashboard() {
       setLoading(true);
       const [dashData, kpisData] = await Promise.all([
         dashboardAPI.getData(filtros),
-        dashboardAPI.getKPIs(filtros) // Passar o objeto de filtros completo
+        dashboardAPI.getKPIs(filtros.ano) // Passar apenas o ano para KPIs
       ]);
       setDashboardData(dashData);
       setKpis(kpisData);
@@ -86,6 +94,12 @@ export default function Dashboard() {
       ...prev,
       [key]: value || undefined
     }));
+  };
+
+  const handleLimparFiltros = () => {
+    setFiltros({
+      ano: filtrosDisponiveis.anos?.[0] || new Date().getFullYear()
+    });
   };
 
   const formatCurrency = (value) => {
@@ -179,13 +193,14 @@ export default function Dashboard() {
           </div>
 
           {/* Filtros */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             <select
               value={filtros.ano || ''}
-              onChange={(e) => handleFilterChange('ano', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              onChange={(e) => handleFilterChange('ano', e.target.value ? parseInt(e.target.value) : undefined)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
-              {[2023, 2024, 2025, 2026].map(ano => (
+              <option value="">Todos os Anos</option>
+              {filtrosDisponiveis.anos.map(ano => (
                 <option key={ano} value={ano}>{ano}</option>
               ))}
             </select>
@@ -193,13 +208,44 @@ export default function Dashboard() {
             <select
               value={filtros.categoria || ''}
               onChange={(e) => handleFilterChange('categoria', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
               <option value="">Todas as Categorias</option>
               {filtrosDisponiveis.categorias.map(categoria => (
                 <option key={categoria} value={categoria}>{categoria}</option>
               ))}
             </select>
+
+            <select
+              value={filtros.uf || ''}
+              onChange={(e) => handleFilterChange('uf', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            >
+              <option value="">Todos os UFs</option>
+              {filtrosDisponiveis.ufs.map(uf => (
+                <option key={uf} value={uf}>{uf}</option>
+              ))}
+            </select>
+
+            <select
+              value={filtros.grupo || ''}
+              onChange={(e) => handleFilterChange('grupo', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            >
+              <option value="">Todos os Grupos</option>
+              {filtrosDisponiveis.grupos.map(grupo => (
+                <option key={grupo} value={grupo}>{grupo}</option>
+              ))}
+            </select>
+
+            {(filtros.categoria || filtros.uf || filtros.grupo) && (
+              <button
+                onClick={handleLimparFiltros}
+                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+              >
+                Limpar Filtros
+              </button>
+            )}
           </div>
         </div>
       </div>

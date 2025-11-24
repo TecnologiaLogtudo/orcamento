@@ -145,6 +145,7 @@ export const orcamentosAPI = {
 export const dashboardAPI = {
   getData: async (filtros = {}) => (await api.get('/dashboard', { params: filtros })).data,
   getKPIs: async (ano) => (await api.get('/dashboard/kpis', { params: { ano } })).data,
+  getFiltros: async () => (await api.get('/dashboard/filtros')).data,
 };
 
 // ============= RELATÓRIOS =============

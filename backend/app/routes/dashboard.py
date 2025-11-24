@@ -158,6 +158,37 @@ def get_dashboard():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/dashboard/filtros', methods=['GET'])
+@jwt_required()
+def get_dashboard_filtros():
+    """Retorna valores disponíveis para filtros do dashboard"""
+    try:
+        # Anos disponíveis (dos orçamentos aprovados)
+        anos_result = db.session.query(ResumoOrcamento.ano).distinct().order_by(ResumoOrcamento.ano.desc()).all()
+        anos = [int(row[0]) for row in anos_result if row[0] is not None]
+        
+        # UFs disponíveis
+        ufs_result = db.session.query(ResumoOrcamento.uf).distinct().filter(ResumoOrcamento.uf != None).order_by(ResumoOrcamento.uf).all()
+        ufs = [row[0] for row in ufs_result if row[0]]
+        
+        # Grupos disponíveis
+        grupos_result = db.session.query(ResumoOrcamento.grupo).distinct().filter(ResumoOrcamento.grupo != None).order_by(ResumoOrcamento.grupo).all()
+        grupos = [row[0] for row in grupos_result if row[0]]
+        
+        # Categorias disponíveis
+        categorias_result = db.session.query(ResumoOrcamento.categoria).distinct().filter(ResumoOrcamento.categoria != None).order_by(ResumoOrcamento.categoria).all()
+        categorias = [row[0] for row in categorias_result if row[0]]
+        
+        return jsonify({
+            'anos': anos,
+            'ufs': ufs,
+            'grupos': grupos,
+            'categorias': categorias
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/dashboard/kpis', methods=['GET'])
 @jwt_required()
 def get_kpis():
