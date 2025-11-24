@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState(null);
   const [comparativo, setComparativo] = useState(null);
   const [distribuicaoCategoria, setDistribuicaoCategoria] = useState(null);
-  const [distribuicaoGrupo, setDistribuicaoGrupo] = useState(null);
+  const [distribuicaoCentroDeCusto, setDistribuicaoCentroDeCusto] = useState(null);
   const [filtros, setFiltros] = useState({
     ano: new Date().getFullYear()
   });
@@ -49,7 +49,7 @@ export default function Dashboard() {
     anos: [],
     categorias: [],
     ufs: [],
-    grupos: []
+    centros_de_custo: []
   });
 
   useEffect(() => {
@@ -81,18 +81,18 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const [dashData, kpisData, comparativoData, distCatData, distGrupoData] = await Promise.all([
+      const [dashData, kpisData, comparativoData, distCatData, distCentroCustoData] = await Promise.all([
         dashboardAPI.getData(filtros),
         dashboardAPI.getKPIs(filtros.ano),
         dashboardAPI.getComparativo(filtros.ano),
         dashboardAPI.getDistribuicao({ ...filtros, tipo: 'categoria' }),
-        dashboardAPI.getDistribuicao({ ...filtros, tipo: 'grupo' })
+        dashboardAPI.getDistribuicao({ ...filtros, tipo: 'centro_custo' })
       ]);
       setDashboardData(dashData);
       setKpis(kpisData);
       setComparativo(comparativoData);
       setDistribuicaoCategoria(distCatData);
-      setDistribuicaoGrupo(distGrupoData);
+      setDistribuicaoCentroDeCusto(distCentroCustoData);
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
     } finally {
@@ -195,13 +195,13 @@ export default function Dashboard() {
     ]
   } : null;
 
-  // Dados para gráfico de pizza (Distribuição por Grupo)
-  const pieGroupData = distribuicaoGrupo?.dados ? {
-    labels: distribuicaoGrupo.dados.map(d => d.nome),
+  // Dados para gráfico de pizza (Distribuição por Centro de Custo)
+  const pieCentroDeCustoData = distribuicaoCentroDeCusto?.dados ? {
+    labels: distribuicaoCentroDeCusto.dados.map(d => d.nome),
     datasets: [
       {
         label: 'Orçado (%)',
-        data: distribuicaoGrupo.dados.map(d => d.percentual),
+        data: distribuicaoCentroDeCusto.dados.map(d => d.percentual),
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
@@ -320,17 +320,17 @@ export default function Dashboard() {
             </select>
 
             <select
-              value={filtros.grupo || ''}
-              onChange={(e) => handleFilterChange('grupo', e.target.value)}
+              value={filtros.centro_custo || ''}
+              onChange={(e) => handleFilterChange('centro_custo', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
-              <option value="">Todos os Grupos</option>
-              {filtrosDisponiveis.grupos.map(grupo => (
-                <option key={grupo} value={grupo}>{grupo}</option>
+              <option value="">Todos os Centros de Custo</option>
+              {filtrosDisponiveis.centros_de_custo.map(cc => (
+                <option key={cc} value={cc}>{cc}</option>
               ))}
             </select>
 
-            {(filtros.categoria || filtros.uf || filtros.grupo) && (
+            {(filtros.categoria || filtros.uf || filtros.centro_custo) && (
               <button
                 onClick={handleLimparFiltros}
                 className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
@@ -459,19 +459,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Top 5 Grupos Críticos */}
+        {/* Top 5 Centros de Custo Críticos */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Desempenho por Categoria
+            Top 5 Centros de Custo Críticos
           </h2>
           <div className="space-y-3">
-            {dashboardData?.grupos_criticos?.map((grupo, index) => (
+            {dashboardData?.centros_custo_criticos?.map((item, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium text-gray-900">{grupo.grupo}</span>
+                <span className="font-medium text-gray-900">{item.centro_custo}</span>
                 <span className={`font-semibold ${
-                  grupo.desvio >= 0 ? 'text-green-600' : 'text-red-600'
+                  item.desvio >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {formatCurrency(grupo.desvio)}
+                  {formatCurrency(item.desvio)}
                 </span>
               </div>
             ))}
@@ -491,13 +491,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Distribuição por Grupo */}
+        {/* Desempenho por Centro de custos */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Distribuição por Grupo
+            Desempenho por Centro de custos
           </h2>
           <div style={{ height: '300px' }}>
-            {pieGroupData && <Doughnut data={pieGroupData} options={pieChartOptions} />}
+            {pieCentroDeCustoData && <Doughnut data={pieCentroDeCustoData} options={pieChartOptions} />}
           </div>
         </div>
       </div>

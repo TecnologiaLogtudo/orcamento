@@ -22,8 +22,8 @@ def _get_filtros_from_db():
         ufs_result = db.session.query(ResumoOrcamento.uf).distinct().filter(ResumoOrcamento.uf != None).order_by(ResumoOrcamento.uf).all()
         ufs = [row[0] for row in ufs_result if row[0]]
         
-        grupos_result = db.session.query(ResumoOrcamento.grupo).distinct().filter(ResumoOrcamento.grupo != None).order_by(ResumoOrcamento.grupo).all()
-        grupos = [row[0] for row in grupos_result if row[0]]
+        centros_custo_result = db.session.query(ResumoOrcamento.master).distinct().filter(ResumoOrcamento.master != None).order_by(ResumoOrcamento.master).all()
+        centros_de_custo = [row[0] for row in centros_custo_result if row[0]]
         
         categorias_result = db.session.query(ResumoOrcamento.categoria).distinct().filter(ResumoOrcamento.categoria != None).order_by(ResumoOrcamento.categoria).all()
         categorias = [row[0] for row in categorias_result if row[0]]
@@ -31,11 +31,11 @@ def _get_filtros_from_db():
         return {
             'anos': anos,
             'ufs': ufs,
-            'grupos': grupos,
+            'centros_de_custo': centros_de_custo,
             'categorias': categorias
         }
     except Exception as e:
-        return {'anos': [], 'ufs': [], 'grupos': [], 'categorias': []}
+        return {'anos': [], 'ufs': [], 'centros_de_custo': [], 'categorias': []}
 
 def _get_filtros_cached():
     """Retorna filtros do cache ou do banco de dados"""
@@ -66,7 +66,7 @@ def get_dashboard():
         ano = request.args.get('ano', type=int)
         categoria = request.args.get('categoria')
         uf = request.args.get('uf')
-        grupo = request.args.get('grupo')
+        centro_custo = request.args.get('centro_custo')
         
         # Query base
         query = db.session.query(
@@ -82,8 +82,8 @@ def get_dashboard():
             query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
-        if grupo:
-            query = query.filter(ResumoOrcamento.grupo == grupo)
+        if centro_custo:
+            query = query.filter(ResumoOrcamento.master == centro_custo)
         
         result = query.first()
         
@@ -115,8 +115,8 @@ def get_dashboard():
             query_mensal = query_mensal.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query_mensal = query_mensal.filter(ResumoOrcamento.uf == uf)
-        if grupo:
-            query_mensal = query_mensal.filter(ResumoOrcamento.grupo == grupo)
+        if centro_custo:
+            query_mensal = query_mensal.filter(ResumoOrcamento.master == centro_custo)
         
         dados_mensais = query_mensal.group_by(ResumoOrcamento.mes).all()
         
@@ -145,30 +145,30 @@ def get_dashboard():
                     'desvio': item['dif']
                 }
         
-        # Top 5 grupos por desvio
-        query_grupos = db.session.query(
-            ResumoOrcamento.grupo,
+        # Top 5 centros de custo por desvio
+        query_centros_custo = db.session.query(
+            ResumoOrcamento.master,
             func.sum(ResumoOrcamento.total_dif).label('dif_total')
         )
         
         if ano:
-            query_grupos = query_grupos.filter(ResumoOrcamento.ano == ano)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.ano == ano)
         if categoria:
-            query_grupos = query_grupos.filter(ResumoOrcamento.categoria == categoria)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.categoria == categoria)
         if uf:
-            query_grupos = query_grupos.filter(ResumoOrcamento.uf == uf)
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.uf == uf)
         
-        top_grupos = query_grupos.group_by(ResumoOrcamento.grupo)\
+        top_centros_custo = query_centros_custo.group_by(ResumoOrcamento.master)\
                                  .order_by(func.abs(func.sum(ResumoOrcamento.total_dif)).desc())\
                                  .limit(5)\
                                  .all()
         
-        grupos_criticos = [
+        centros_custo_criticos = [
             {
-                'grupo': g.grupo,
+                'centro_custo': g.master,
                 'desvio': float(g.dif_total) if g.dif_total else 0.0
             }
-            for g in top_grupos
+            for g in top_centros_custo
         ]
         
         # Dados por centro de custo (categoria)
@@ -183,8 +183,8 @@ def get_dashboard():
             query_centros_custo = query_centros_custo.filter(ResumoOrcamento.ano == ano)
         if uf:
             query_centros_custo = query_centros_custo.filter(ResumoOrcamento.uf == uf)
-        if grupo:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.grupo == grupo)
+        if centro_custo:
+            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.master == centro_custo)
         
         dados_por_categoria = query_centros_custo.group_by(ResumoOrcamento.categoria).all()
         
@@ -202,7 +202,7 @@ def get_dashboard():
             'totais': totais,
             'dados_mensais': dados_por_mes,
             'mes_critico': mes_critico,
-            'grupos_criticos': grupos_criticos,
+            'centros_custo_criticos': centros_custo_criticos,
             'centros_custo': centros_custo
         }), 200
         
@@ -287,13 +287,20 @@ def get_dashboard_distribuicao():
         ano = request.args.get('ano', type=int)
         categoria = request.args.get('categoria')
         uf = request.args.get('uf')
-        grupo = request.args.get('grupo')
-        tipo = request.args.get('tipo', default='categoria')  # 'categoria' ou 'grupo'
+        centro_custo = request.args.get('centro_custo')
+        tipo = request.args.get('tipo', default='categoria')  # 'categoria', 'centro_custo', ou 'grupo' (obsoleto)
         
-        # Query base para distribuição por categoria
+        # Query base para distribuição
         if tipo == 'categoria':
             query = db.session.query(
                 ResumoOrcamento.categoria.label('nome'),
+                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
+                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
+                func.sum(ResumoOrcamento.total_dif).label('dif')
+            )
+        elif tipo == 'centro_custo':
+            query = db.session.query(
+                ResumoOrcamento.master.label('nome'),
                 func.sum(ResumoOrcamento.total_orcado).label('orcado'),
                 func.sum(ResumoOrcamento.total_realizado).label('realizado'),
                 func.sum(ResumoOrcamento.total_dif).label('dif')
@@ -313,12 +320,14 @@ def get_dashboard_distribuicao():
             query = query.filter(ResumoOrcamento.categoria == categoria)
         if uf:
             query = query.filter(ResumoOrcamento.uf == uf)
-        if grupo:
-            query = query.filter(ResumoOrcamento.grupo == grupo)
+        if centro_custo:
+            query = query.filter(ResumoOrcamento.master == centro_custo)
         
         # Agrupar
         if tipo == 'categoria':
             query = query.group_by(ResumoOrcamento.categoria)
+        elif tipo == 'centro_custo':
+            query = query.group_by(ResumoOrcamento.master)
         else:
             query = query.group_by(ResumoOrcamento.grupo)
         
