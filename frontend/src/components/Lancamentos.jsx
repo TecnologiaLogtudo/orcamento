@@ -11,6 +11,7 @@ export default function Lancamentos() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modifiedIds, setModifiedIds] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [filtros, setFiltros] = useState({
     ano: new Date().getFullYear(),
     mes: new Date().getMonth() + 1,
@@ -103,12 +104,74 @@ export default function Lancamentos() {
       setOrcamentos(orcamentosCompletos);
       setOriginalOrcamentos(JSON.parse(JSON.stringify(orcamentosCompletos)));
       setModifiedIds(new Set());
+      setSelectedIds(new Set());
     } catch (error) {
       console.error('Erro ao carregar orçamentos:', error);
     } finally {
       setLoading(false);
     }
   }, [filtros]); // Dependência do objeto de filtros completo
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id);
+      else s.add(id);
+      return s;
+    });
+  };
+
+  const toggleSelectAll = (checked) => {
+    if (checked) {
+      const eligible = orcamentos
+        .filter(o => o.id_orcamento && o.status === 'aguardando_aprovacao')
+        .map(o => o.id_orcamento);
+      setSelectedIds(new Set(eligible));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleBatchApprove = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      alert('Nenhum orçamento selecionado para aprovação.');
+      return;
+    }
+    if (!confirm(`Confirmar aprovação de ${ids.length} orçamentos?`)) return;
+    setSaving(true);
+    try {
+      await orcamentosAPI.batchApprove(ids);
+      alert(`${ids.length} orçamentos aprovados com sucesso.`);
+      setSelectedIds(new Set());
+      loadOrcamentos();
+    } catch (error) {
+      alert('Erro ao aprovar orçamentos: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBatchReprove = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      alert('Nenhum orçamento selecionado para reprovação.');
+      return;
+    }
+    const motivo = prompt('Motivo da reprovação (opcional):', '');
+    if (!confirm(`Confirmar reprovação de ${ids.length} orçamentos?`)) return;
+    setSaving(true);
+    try {
+      await orcamentosAPI.batchReprove(ids, motivo);
+      alert(`${ids.length} orçamentos reprovados com sucesso.`);
+      setSelectedIds(new Set());
+      loadOrcamentos();
+    } catch (error) {
+      alert('Erro ao reprovar orçamentos: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleFiltroChange = (e) => {
     const { name, value } = e.target;
@@ -225,6 +288,47 @@ export default function Lancamentos() {
     }).format(value || 0);
   };
 
+  // Retorna o número do mês (1-12) a partir do valor que pode ser número ou nome.
+  const getMonthNumber = (mes) => {
+    if (!mes && mes !== 0) return null;
+    if (typeof mes === 'number') return mes;
+    const found = opcoesFiltro.meses.find(m => m.nome.toLowerCase() === String(mes).toLowerCase());
+    return found ? found.valor : null;
+  };
+
+  // Verifica se estamos dentro do prazo para editar o campo 'realizado' após aprovação:
+  // até o 5º dia útil do mês seguinte ao mês do orçamento.
+  const isWithinRealizadoEditWindow = (mes, ano) => {
+    const monthNum = getMonthNumber(mes);
+    if (!monthNum || !ano) return false;
+
+    // Próximo mês e ano
+    const nextMonthIndex = monthNum === 12 ? 0 : monthNum; // Date monthIndex (0-11)
+    const nextYear = monthNum === 12 ? ano + 1 : ano;
+
+    let businessDays = 0;
+    let day = 1;
+    let fifthBusinessDate = null;
+    while (businessDays < 5 && day <= 31) {
+      const d = new Date(nextYear, nextMonthIndex, day);
+      const dow = d.getDay(); // 0 = Sunday, 6 = Saturday
+      if (dow !== 0 && dow !== 6) {
+        businessDays += 1;
+        if (businessDays === 5) {
+          fifthBusinessDate = d;
+          break;
+        }
+      }
+      day += 1;
+    }
+
+    if (!fifthBusinessDate) return false;
+
+    const now = new Date();
+    const endOfFifth = new Date(fifthBusinessDate.getFullYear(), fifthBusinessDate.getMonth(), fifthBusinessDate.getDate(), 23, 59, 59, 999);
+    return now <= endOfFifth;
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
       rascunho: 'bg-gray-100 text-gray-800',
@@ -302,6 +406,26 @@ export default function Lancamentos() {
             </button>
           </div>
         )}
+        {canApprove() && selectedIds.size > 0 && (
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={handleBatchApprove}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+              Aprovar Selecionados ({selectedIds.size})
+            </button>
+            <button
+              onClick={handleBatchReprove}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
+              Reprovar Selecionados ({selectedIds.size})
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabela de Lançamentos */}
@@ -315,6 +439,13 @@ export default function Lancamentos() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <input
+                  type="checkbox"
+                  onChange={(e) => toggleSelectAll(e.target.checked)}
+                  checked={orcamentos.length > 0 && Array.from(selectedIds).length > 0 && orcamentos.filter(o => o.id_orcamento && o.status === 'aguardando_aprovacao').length === Array.from(selectedIds).length}
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">C. Custo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grupo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">UF</th>
@@ -328,6 +459,14 @@ export default function Lancamentos() {
           <tbody className="bg-white divide-y divide-gray-200">
             {orcamentos.map((orc) => (
               <tr key={orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`} className="hover:bg-gray-50">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(orc.id_orcamento)}
+                    disabled={!orc.id_orcamento || orc.status !== 'aguardando_aprovacao'}
+                    onChange={() => toggleSelect(orc.id_orcamento)}
+                  />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.master || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.grupo || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.uf || ''}</td>
@@ -345,7 +484,7 @@ export default function Lancamentos() {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {canEdit() && orc.status !== 'aprovado' ? (
+                  {canEdit() && (orc.status !== 'aprovado' || (orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano))) ? (
                     <input
                       type="number"
                       value={orc.realizado || ''}

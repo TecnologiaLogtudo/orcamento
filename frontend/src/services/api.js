@@ -124,6 +124,15 @@ export const orcamentosAPI = {
     const payload = Array.isArray(ids) ? { ids } : (ids || {});
     return (await api.post('/orcamentos/batch_submit', payload)).data;
   },
+  batchApprove: async (ids) => {
+    const payload = Array.isArray(ids) ? { ids } : (ids || {});
+    return (await api.post('/orcamentos/batch_approve', payload)).data;
+  },
+  batchReprove: async (ids, motivo) => {
+    const payload = Array.isArray(ids) ? { ids } : (ids || {});
+    if (motivo) payload.motivo = motivo;
+    return (await api.post('/orcamentos/batch_reprove', payload)).data;
+  },
   aprovar: async (id) => (await api.post(`/orcamentos/${id}/aprovar`)).data,
   reprovar: async (id, motivo) => (await api.post(`/orcamentos/${id}/reprovar`, { motivo })).data,
   delete: async (id) => (await api.delete(`/orcamentos/${id}`)).data,

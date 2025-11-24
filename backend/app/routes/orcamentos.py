@@ -182,6 +182,111 @@ def create_or_update_orcamento():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+@bp.route('/orcamentos/batch_approve', methods=['POST'])
+@jwt_required()
+def batch_approve_orcamentos():
+    """Aprova múltiplos orçamentos em lote (gestor/admin)"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if current_user.papel not in ['gestor', 'admin']:
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        data = request.get_json()
+        if 'ids' not in data or not isinstance(data['ids'], list):
+            return jsonify({'error': 'Lista de IDs de orçamentos inválida'}), 400
+
+        orcamento_ids = data['ids']
+        updated_count = 0
+        errors = []
+
+        for orc_id in orcamento_ids:
+            orcamento = Orcamento.query.get(orc_id)
+            if not orcamento:
+                errors.append(f'Orçamento com ID {orc_id} não encontrado.')
+                continue
+
+            if orcamento.status == 'aprovado':
+                # já aprovado, pular
+                continue
+
+            orcamento.status = 'aprovado'
+            orcamento.aprovado_por = user_id
+            orcamento.data_aprovacao = datetime.utcnow()
+            orcamento.atualizado_por = user_id
+            updated_count += 1
+
+        db.session.commit()
+
+        # Registrar no log
+        log = Log(
+            id_usuario=current_user.id_usuario,
+            acao=f'Aprovação em lote: {updated_count} aprovados',
+            tabela_afetada='orcamentos',
+            id_registro=None,
+            detalhes={'ids': orcamento_ids, 'atualizados': updated_count, 'erros': len(errors)}
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        return jsonify({'message': f'{updated_count} orçamentos aprovados.', 'errors': errors}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/orcamentos/batch_reprove', methods=['POST'])
+@jwt_required()
+def batch_reprove_orcamentos():
+    """Reprova (volta para rascunho) múltiplos orçamentos em lote (gestor/admin)"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if current_user.papel not in ['gestor', 'admin']:
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        data = request.get_json()
+        if 'ids' not in data or not isinstance(data['ids'], list):
+            return jsonify({'error': 'Lista de IDs de orçamentos inválida'}), 400
+
+        motivo = data.get('motivo', 'Sem motivo especificado')
+        orcamento_ids = data['ids']
+        updated_count = 0
+        errors = []
+
+        for orc_id in orcamento_ids:
+            orcamento = Orcamento.query.get(orc_id)
+            if not orcamento:
+                errors.append(f'Orçamento com ID {orc_id} não encontrado.')
+                continue
+
+            orcamento.status = 'rascunho'
+            orcamento.aprovado_por = None
+            orcamento.data_aprovacao = None
+            orcamento.atualizado_por = user_id
+            updated_count += 1
+
+        db.session.commit()
+
+        # Registrar no log
+        log = Log(
+            id_usuario=current_user.id_usuario,
+            acao=f'Reprovação em lote: {updated_count} reprovados',
+            tabela_afetada='orcamentos',
+            id_registro=None,
+            detalhes={'ids': orcamento_ids, 'motivo': motivo, 'atualizados': updated_count, 'erros': len(errors)}
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        return jsonify({'message': f'{updated_count} orçamentos reprovados.', 'errors': errors}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/orcamentos/filtros', methods=['GET'])
 @jwt_required()
 def get_orcamento_filtros():
