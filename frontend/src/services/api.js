@@ -119,6 +119,11 @@ export const orcamentosAPI = {
     (await api.get(`/orcamentos/categoria/${idCategoria}/ano/${ano}`)).data,
   createOrUpdate: async (data) => (await api.post('/orcamentos', data)).data,
   batchUpdate: async (orcamentos) => (await api.post('/orcamentos/batch', { orcamentos })).data,
+  batchSubmit: async (ids) => {
+    // aceita tanto um array de ids quanto um objeto { ids: [...] }
+    const payload = Array.isArray(ids) ? { ids } : (ids || {});
+    return (await api.post('/orcamentos/batch_submit', payload)).data;
+  },
   aprovar: async (id) => (await api.post(`/orcamentos/${id}/aprovar`)).data,
   reprovar: async (id, motivo) => (await api.post(`/orcamentos/${id}/reprovar`, { motivo })).data,
   delete: async (id) => (await api.delete(`/orcamentos/${id}`)).data,

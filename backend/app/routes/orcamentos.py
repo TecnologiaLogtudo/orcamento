@@ -140,8 +140,8 @@ def create_or_update_orcamento():
             acao = 'Criou orçamento'
         else:
             # Verificar se pode editar (não pode editar se aprovado)
-            if orcamento.status == 'aprovado' and current_user.papel != 'admin':
-                return jsonify({'error': 'Orçamento aprovado não pode ser editado'}), 403
+            if orcamento.status == 'aprovado':
+                return jsonify({'error': 'Orçamento aprovado não pode ser editado por ninguém.'}), 403
             
             acao = 'Atualizou orçamento'
             orcamento.atualizado_por = user_id
@@ -226,6 +226,7 @@ def batch_update_orcamentos():
         updated = 0
         created = 0
         errors = []
+        processed_orcamentos = []
         
         for orc_data in data['orcamentos']:
             try:
@@ -250,6 +251,10 @@ def batch_update_orcamentos():
                 ).first()
                 
                 if orcamento:
+                    if orcamento.status == 'aprovado':
+                        errors.append(f'Orçamento para categoria {orc_data["id_categoria"]} no mês {mes_nome} está aprovado e não pode ser editado.')
+                        continue
+
                     orcamento.atualizado_por = user_id
                     updated += 1
                 else:
@@ -273,6 +278,13 @@ def batch_update_orcamentos():
             except Exception as e:
                 errors.append(f'Erro em {orc_data}: {str(e)}')
         
+        db.session.flush() # Garante que os IDs sejam gerados para novos orçamentos
+        for orc_data in data['orcamentos']:
+            mes_nome = MESES[orc_data['mes'] - 1] if isinstance(orc_data['mes'], int) else orc_data['mes']
+            orc = Orcamento.query.filter_by(id_categoria=orc_data['id_categoria'], mes=mes_nome, ano=orc_data['ano']).first()
+            if orc:
+                processed_orcamentos.append({'id_orcamento': orc.id_orcamento})
+        
         db.session.commit()
         
         # Registrar no log
@@ -294,9 +306,50 @@ def batch_update_orcamentos():
             'message': 'Atualização concluída',
             'created': created,
             'updated': updated,
-            'errors': errors
+            'errors': errors,
+            'orcamentos': processed_orcamentos
         }), 200 if not errors else 207
         
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/orcamentos/batch_submit', methods=['POST'])
+@jwt_required()
+def batch_submit_orcamentos():
+    """Submete múltiplos orçamentos para aprovação."""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if current_user.papel not in ['admin', 'gestor']:
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        data = request.get_json()
+        if 'ids' not in data or not isinstance(data['ids'], list):
+            return jsonify({'error': 'Lista de IDs de orçamentos inválida'}), 400
+
+        orcamento_ids = data['ids']
+        updated_count = 0
+        errors = []
+
+        for orc_id in orcamento_ids:
+            orcamento = Orcamento.query.get(orc_id)
+            if not orcamento:
+                errors.append(f'Orçamento com ID {orc_id} não encontrado.')
+                continue
+            
+            if orcamento.status == 'rascunho':
+                orcamento.status = 'aguardando_aprovacao'
+                orcamento.atualizado_por = user_id
+                updated_count += 1
+
+        db.session.commit()
+
+        return jsonify({
+            'message': f'{updated_count} orçamentos enviados para aprovação.',
+            'errors': errors
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

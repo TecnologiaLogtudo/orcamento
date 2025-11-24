@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { orcamentosAPI } from '../services/api';
 import { categoriasAPI } from '../services/api';
-import { Filter, RotateCcw, Save, Loader2 } from 'lucide-react';
+import { Filter, RotateCcw, Save, Loader2, Send, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Lancamentos() {
-  const { canEdit } = useAuth();
+  const { user, canEdit, canApprove } = useAuth();
   const [orcamentos, setOrcamentos] = useState([]);
   const [originalOrcamentos, setOriginalOrcamentos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -151,40 +151,70 @@ export default function Lancamentos() {
     );
   };
 
-  const handleSaveChanges = async () => {
+  const handleSendForApproval = async () => {
     const modifiedOrcamentos = orcamentos.filter(orc => {
       const uniqueId = orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`;
-      return modifiedIds.has(uniqueId);
+      // Apenas rascunhos modificados
+      return modifiedIds.has(uniqueId) && orc.status === 'rascunho';
     });
 
     if (modifiedOrcamentos.length === 0) {
-      alert('Nenhuma alteração para salvar.');
+      alert('Nenhum rascunho modificado para enviar.');
       return;
     }
 
     setSaving(true);
     try {
+      // Passo 1: Salvar as alterações
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        // O backend espera apenas o id_categoria, não o objeto categoria aninhado.
-        // E espera o nome do mês, não o número.
         const { categoria, ...rest } = orc;
         const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
         return {
           ...rest,
           mes: mesObj ? mesObj.nome : rest.mes,
-          id_orcamento: rest.id_orcamento || null,
+          id_orcamento: rest.id_orcamento || null
         };
       });
 
-      // `orcamentosAPI.batchUpdate` já empacota o array dentro de { orcamentos: [...] }.
-      // Então aqui enviamos apenas o array para evitar duplo aninhamento.
-      await orcamentosAPI.batchUpdate(orcamentosPayload);
-      alert('Alterações salvas com sucesso!');
-      loadOrcamentos(); // Recarrega para obter dados atualizados e limpar o estado
+      const savedResult = await orcamentosAPI.batchUpdate(orcamentosPayload);
+      
+      // Passo 2: Submeter os orçamentos salvos/atualizados para aprovação
+      // O backend retorna os IDs dos orçamentos criados/atualizados
+      const idsToSubmit = savedResult.orcamentos.map(o => o.id_orcamento);
+      if (idsToSubmit.length > 0) {
+        await orcamentosAPI.batchSubmit(idsToSubmit);
+      }
+
+      alert(`${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
+      loadOrcamentos();
     } catch (error) {
-      alert('Erro ao salvar alterações: ' + (error.response?.data?.error || error.message));
+      alert('Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (orcamentoId, newStatus) => {
+    try {
+      let apiCall;
+      switch (newStatus) {
+        case 'aprovado':
+          // Assumindo que a API tem um endpoint para aprovar
+          apiCall = orcamentosAPI.aprovar(orcamentoId);
+          break;
+        case 'rascunho': // Reprovar volta para rascunho
+          // Assumindo que a API tem um endpoint para reprovar
+          apiCall = orcamentosAPI.reprovar(orcamentoId);
+          break;
+        default:
+          // A submissão agora é em lote, então o caso 'aguardando_aprovacao' individual foi removido.
+          throw new Error('Ação de status desconhecida.');
+      }
+      await apiCall;
+      alert(`Orçamento atualizado com sucesso!`);
+      loadOrcamentos(); // Recarrega para refletir a mudança de status
+    } catch (error) {
+      alert('Erro ao atualizar status: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -256,19 +286,19 @@ export default function Lancamentos() {
           </select>
         </div>
 
-        {canEdit && modifiedIds.size > 0 && (
+        {canEdit() && modifiedIds.size > 0 && orcamentos.some(o => modifiedIds.has(o.id_orcamento || `${o.id_categoria}-${o.mes}-${o.ano}`) && o.status === 'rascunho') && (
           <div className="mt-4 flex justify-end">
             <button
-              onClick={handleSaveChanges}
+              onClick={handleSendForApproval}
               disabled={saving}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                <Save size={20} />
+                <Send size={20} />
               )}
-              Salvar Alterações ({modifiedIds.size})
+              Enviar Rascunhos para Aprovação
             </button>
           </div>
         )}
@@ -292,6 +322,7 @@ export default function Lancamentos() {
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Realizado</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Diferença</th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ações</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -301,7 +332,8 @@ export default function Lancamentos() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.grupo || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.uf || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {canEdit ? (
+                  {/* Regra de edição: pode editar se tiver permissão E o status não for 'aprovado' */}
+                  {canEdit() && orc.status !== 'aprovado' ? (
                     <input
                       type="number"
                       value={orc.orcado || ''}
@@ -313,7 +345,7 @@ export default function Lancamentos() {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {canEdit ? (
+                  {canEdit() && orc.status !== 'aprovado' ? (
                     <input
                       type="number"
                       value={orc.realizado || ''}
@@ -331,6 +363,21 @@ export default function Lancamentos() {
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(orc.status)}`}>
                     {(orc.status || '').replace('_', ' ')}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                  <div className="flex items-center justify-center gap-2">
+                    {/* Ações do Gestor */}
+                    {canApprove() && orc.status === 'aguardando_aprovacao' && (
+                      <>
+                        <button onClick={() => handleStatusChange(orc.id_orcamento, 'aprovado')} className="text-green-600 hover:text-green-900" title="Aprovar">
+                          <Check size={18} />
+                        </button>
+                        <button onClick={() => handleStatusChange(orc.id_orcamento, 'rascunho')} className="text-red-600 hover:text-red-900" title="Reprovar">
+                          <X size={18} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
