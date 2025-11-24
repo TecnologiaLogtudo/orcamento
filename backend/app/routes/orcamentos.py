@@ -234,10 +234,18 @@ def batch_update_orcamentos():
                     errors.append(f'Dados incompletos: {orc_data}')
                     continue
                 
+                # Garante que o mês seja o nome, não o número
+                mes_valor = orc_data['mes']
+                if isinstance(mes_valor, int) and 1 <= mes_valor <= 12:
+                    mes_nome = MESES[mes_valor - 1]
+                else:
+                    mes_nome = mes_valor
+
+
                 # Buscar ou criar
                 orcamento = Orcamento.query.filter_by(
                     id_categoria=orc_data['id_categoria'],
-                    mes=orc_data['mes'],
+                    mes=mes_nome,
                     ano=orc_data['ano']
                 ).first()
                 
@@ -247,7 +255,7 @@ def batch_update_orcamentos():
                 else:
                     orcamento = Orcamento(
                         id_categoria=orc_data['id_categoria'],
-                        mes=orc_data['mes'],
+                        mes=mes_nome,
                         ano=orc_data['ano'],
                         criado_por=user_id,
                         status='rascunho' # Default status

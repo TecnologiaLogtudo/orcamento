@@ -101,7 +101,20 @@ export const categoriasAPI = {
 
 export const orcamentosAPI = {
   getFiltros: async () => (await api.get('/orcamentos/filtros')).data,
-  list: async (filtros = {}) => (await api.get('/orcamentos', { params: filtros })).data,
+  list: async (filtros = {}) => {
+    // O backend armazena o mês como nome (e.g., 'Janeiro').
+    // Se o frontend passar um número, converte para o nome antes de chamar o endpoint.
+    const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    const params = { ...filtros };
+    if (params.mes && typeof params.mes === 'number') {
+      const m = params.mes;
+      if (m >= 1 && m <= 12) params.mes = MESES[m - 1];
+    }
+
+    return (await api.get('/orcamentos', { params })).data;
+  },
   getCategoriaAno: async (idCategoria, ano) =>
     (await api.get(`/orcamentos/categoria/${idCategoria}/ano/${ano}`)).data,
   createOrUpdate: async (data) => (await api.post('/orcamentos', data)).data,

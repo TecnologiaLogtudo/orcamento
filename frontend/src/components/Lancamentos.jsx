@@ -164,12 +164,21 @@ export default function Lancamentos() {
 
     setSaving(true);
     try {
-      const payload = {
-        orcamentos: modifiedOrcamentos.map(({ id_orcamento, id_categoria, mes, ano, orcado, realizado, status }) => ({
-          id_orcamento, id_categoria, mes, ano, orcado, realizado, status
-        }))
-      };
-      await orcamentosAPI.batchUpdate(payload);
+      const orcamentosPayload = modifiedOrcamentos.map(orc => {
+        // O backend espera apenas o id_categoria, não o objeto categoria aninhado.
+        // E espera o nome do mês, não o número.
+        const { categoria, ...rest } = orc;
+        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        return {
+          ...rest,
+          mes: mesObj ? mesObj.nome : rest.mes,
+          id_orcamento: rest.id_orcamento || null,
+        };
+      });
+
+      // `orcamentosAPI.batchUpdate` já empacota o array dentro de { orcamentos: [...] }.
+      // Então aqui enviamos apenas o array para evitar duplo aninhamento.
+      await orcamentosAPI.batchUpdate(orcamentosPayload);
       alert('Alterações salvas com sucesso!');
       loadOrcamentos(); // Recarrega para obter dados atualizados e limpar o estado
     } catch (error) {
