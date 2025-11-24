@@ -3,8 +3,59 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.models import db, ResumoOrcamento, Orcamento, Categoria
 from sqlalchemy import func, and_
+from functools import lru_cache
+from datetime import datetime, timedelta
 
 bp = Blueprint('dashboard', __name__)
+
+# Cache para filtros disponíveis (atualiza a cada 30 minutos)
+_filtros_cache = None
+_filtros_cache_time = None
+CACHE_DURATION = 1800  # 30 minutos em segundos
+
+def _get_filtros_from_db():
+    """Busca filtros do banco de dados"""
+    try:
+        anos_result = db.session.query(ResumoOrcamento.ano).distinct().order_by(ResumoOrcamento.ano.desc()).all()
+        anos = [int(row[0]) for row in anos_result if row[0] is not None]
+        
+        ufs_result = db.session.query(ResumoOrcamento.uf).distinct().filter(ResumoOrcamento.uf != None).order_by(ResumoOrcamento.uf).all()
+        ufs = [row[0] for row in ufs_result if row[0]]
+        
+        grupos_result = db.session.query(ResumoOrcamento.grupo).distinct().filter(ResumoOrcamento.grupo != None).order_by(ResumoOrcamento.grupo).all()
+        grupos = [row[0] for row in grupos_result if row[0]]
+        
+        categorias_result = db.session.query(ResumoOrcamento.categoria).distinct().filter(ResumoOrcamento.categoria != None).order_by(ResumoOrcamento.categoria).all()
+        categorias = [row[0] for row in categorias_result if row[0]]
+        
+        return {
+            'anos': anos,
+            'ufs': ufs,
+            'grupos': grupos,
+            'categorias': categorias
+        }
+    except Exception as e:
+        return {'anos': [], 'ufs': [], 'grupos': [], 'categorias': []}
+
+def _get_filtros_cached():
+    """Retorna filtros do cache ou do banco de dados"""
+    global _filtros_cache, _filtros_cache_time
+    
+    now = datetime.now()
+    
+    # Se não há cache ou expirou, busca do banco
+    if _filtros_cache is None or _filtros_cache_time is None or \
+       (now - _filtros_cache_time).total_seconds() > CACHE_DURATION:
+        _filtros_cache = _get_filtros_from_db()
+        _filtros_cache_time = now
+    
+    return _filtros_cache
+
+def limpar_cache_filtros():
+    """Limpa o cache de filtros (chamar quando houver novos dados)"""
+    global _filtros_cache, _filtros_cache_time
+    _filtros_cache = None
+    _filtros_cache_time = None
 
 @bp.route('/dashboard', methods=['GET'])
 @jwt_required()
@@ -161,29 +212,139 @@ def get_dashboard():
 @bp.route('/dashboard/filtros', methods=['GET'])
 @jwt_required()
 def get_dashboard_filtros():
-    """Retorna valores disponíveis para filtros do dashboard"""
+    """Retorna valores disponíveis para filtros do dashboard (com cache)"""
     try:
-        # Anos disponíveis (dos orçamentos aprovados)
-        anos_result = db.session.query(ResumoOrcamento.ano).distinct().order_by(ResumoOrcamento.ano.desc()).all()
-        anos = [int(row[0]) for row in anos_result if row[0] is not None]
+        filtros = _get_filtros_cached()
+        return jsonify(filtros), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/dashboard/comparativo', methods=['GET'])
+@jwt_required()
+def get_dashboard_comparativo():
+    """Retorna dados comparativos entre período atual e período anterior"""
+    try:
+        # Período atual (padrão: ano atual)
+        ano_atual = request.args.get('ano', type=int)
+        if not ano_atual:
+            # Detecta o ano mais recente nos dados
+            max_ano = db.session.query(func.max(ResumoOrcamento.ano)).scalar()
+            ano_atual = max_ano if max_ano else datetime.now().year
         
-        # UFs disponíveis
-        ufs_result = db.session.query(ResumoOrcamento.uf).distinct().filter(ResumoOrcamento.uf != None).order_by(ResumoOrcamento.uf).all()
-        ufs = [row[0] for row in ufs_result if row[0]]
+        ano_anterior = ano_atual - 1
         
-        # Grupos disponíveis
-        grupos_result = db.session.query(ResumoOrcamento.grupo).distinct().filter(ResumoOrcamento.grupo != None).order_by(ResumoOrcamento.grupo).all()
-        grupos = [row[0] for row in grupos_result if row[0]]
+        # Função para obter dados de um ano
+        def get_dados_ano(ano):
+            query = db.session.query(
+                func.sum(ResumoOrcamento.total_orcado).label('total_orcado'),
+                func.sum(ResumoOrcamento.total_realizado).label('total_realizado'),
+                func.sum(ResumoOrcamento.total_dif).label('total_dif')
+            ).filter(ResumoOrcamento.ano == ano)
+            
+            result = query.first()
+            return {
+                'total_orcado': float(result.total_orcado) if result.total_orcado else 0.0,
+                'total_realizado': float(result.total_realizado) if result.total_realizado else 0.0,
+                'total_dif': float(result.total_dif) if result.total_dif else 0.0
+            }
         
-        # Categorias disponíveis
-        categorias_result = db.session.query(ResumoOrcamento.categoria).distinct().filter(ResumoOrcamento.categoria != None).order_by(ResumoOrcamento.categoria).all()
-        categorias = [row[0] for row in categorias_result if row[0]]
+        dados_atual = get_dados_ano(ano_atual)
+        dados_anterior = get_dados_ano(ano_anterior)
+        
+        # Calcular variações percentuais
+        def calcular_variacao(atual, anterior):
+            if anterior == 0:
+                return 100.0 if atual > 0 else 0.0
+            return ((atual - anterior) / abs(anterior)) * 100
+        
+        comparativo = {
+            'periodo_atual': {
+                'ano': ano_atual,
+                'dados': dados_atual
+            },
+            'periodo_anterior': {
+                'ano': ano_anterior,
+                'dados': dados_anterior
+            },
+            'variacoes': {
+                'total_orcado_pct': calcular_variacao(dados_atual['total_orcado'], dados_anterior['total_orcado']),
+                'total_realizado_pct': calcular_variacao(dados_atual['total_realizado'], dados_anterior['total_realizado']),
+                'total_dif_pct': calcular_variacao(dados_atual['total_dif'], dados_anterior['total_dif'])
+            }
+        }
+        
+        return jsonify(comparativo), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/dashboard/distribuicao', methods=['GET'])
+@jwt_required()
+def get_dashboard_distribuicao():
+    """Retorna dados de distribuição para gráficos de pizza"""
+    try:
+        # Filtros
+        ano = request.args.get('ano', type=int)
+        categoria = request.args.get('categoria')
+        uf = request.args.get('uf')
+        grupo = request.args.get('grupo')
+        tipo = request.args.get('tipo', default='categoria')  # 'categoria' ou 'grupo'
+        
+        # Query base para distribuição por categoria
+        if tipo == 'categoria':
+            query = db.session.query(
+                ResumoOrcamento.categoria.label('nome'),
+                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
+                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
+                func.sum(ResumoOrcamento.total_dif).label('dif')
+            )
+        else:  # tipo == 'grupo'
+            query = db.session.query(
+                ResumoOrcamento.grupo.label('nome'),
+                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
+                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
+                func.sum(ResumoOrcamento.total_dif).label('dif')
+            )
+        
+        # Aplicar filtros
+        if ano:
+            query = query.filter(ResumoOrcamento.ano == ano)
+        if categoria:
+            query = query.filter(ResumoOrcamento.categoria == categoria)
+        if uf:
+            query = query.filter(ResumoOrcamento.uf == uf)
+        if grupo:
+            query = query.filter(ResumoOrcamento.grupo == grupo)
+        
+        # Agrupar
+        if tipo == 'categoria':
+            query = query.group_by(ResumoOrcamento.categoria)
+        else:
+            query = query.group_by(ResumoOrcamento.grupo)
+        
+        resultados = query.all()
+        
+        # Formatar dados para gráfico de pizza
+        dados_pizza = []
+        for row in resultados:
+            dados_pizza.append({
+                'nome': row.nome,
+                'orcado': float(row.orcado) if row.orcado else 0.0,
+                'realizado': float(row.realizado) if row.realizado else 0.0,
+                'dif': float(row.dif) if row.dif else 0.0,
+                'percentual': 0.0  # Será calculado no frontend
+            })
+        
+        # Calcular percentuais
+        total_orcado = sum(item['orcado'] for item in dados_pizza)
+        if total_orcado > 0:
+            for item in dados_pizza:
+                item['percentual'] = (item['orcado'] / total_orcado) * 100
         
         return jsonify({
-            'anos': anos,
-            'ufs': ufs,
-            'grupos': grupos,
-            'categorias': categorias
+            'tipo': tipo,
+            'dados': dados_pizza,
+            'total_orcado': total_orcado
         }), 200
         
     except Exception as e:

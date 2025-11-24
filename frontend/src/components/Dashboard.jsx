@@ -8,7 +8,7 @@ import {
   BarChart3,
   Calendar
 } from 'lucide-react';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +16,7 @@ import {
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -28,6 +29,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -37,6 +39,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [kpis, setKpis] = useState(null);
+  const [comparativo, setComparativo] = useState(null);
+  const [distribuicaoCategoria, setDistribuicaoCategoria] = useState(null);
+  const [distribuicaoGrupo, setDistribuicaoGrupo] = useState(null);
   const [filtros, setFiltros] = useState({
     ano: new Date().getFullYear()
   });
@@ -76,12 +81,18 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const [dashData, kpisData] = await Promise.all([
+      const [dashData, kpisData, comparativoData, distCatData, distGrupoData] = await Promise.all([
         dashboardAPI.getData(filtros),
-        dashboardAPI.getKPIs(filtros.ano) // Passar apenas o ano para KPIs
+        dashboardAPI.getKPIs(filtros.ano),
+        dashboardAPI.getComparativo(filtros.ano),
+        dashboardAPI.getDistribuicao({ ...filtros, tipo: 'categoria' }),
+        dashboardAPI.getDistribuicao({ ...filtros, tipo: 'grupo' })
       ]);
       setDashboardData(dashData);
       setKpis(kpisData);
+      setComparativo(comparativoData);
+      setDistribuicaoCategoria(distCatData);
+      setDistribuicaoGrupo(distGrupoData);
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
     } finally {
@@ -152,6 +163,70 @@ export default function Dashboard() {
     ]
   } : null;
 
+  // Dados para gráfico de pizza (Distribuição por Categoria)
+  const pieCategoryData = distribuicaoCategoria?.dados ? {
+    labels: distribuicaoCategoria.dados.map(d => d.nome),
+    datasets: [
+      {
+        label: 'Orçado (%)',
+        data: distribuicaoCategoria.dados.map(d => d.percentual),
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(249, 115, 22, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+          'rgba(236, 72, 153, 0.8)',
+          'rgba(14, 165, 233, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+        ],
+        borderColor: [
+          'rgb(59, 130, 246)',
+          'rgb(16, 185, 129)',
+          'rgb(249, 115, 22)',
+          'rgb(168, 85, 247)',
+          'rgb(236, 72, 153)',
+          'rgb(14, 165, 233)',
+          'rgb(34, 197, 94)',
+          'rgb(239, 68, 68)',
+        ],
+        borderWidth: 2
+      }
+    ]
+  } : null;
+
+  // Dados para gráfico de pizza (Distribuição por Grupo)
+  const pieGroupData = distribuicaoGrupo?.dados ? {
+    labels: distribuicaoGrupo.dados.map(d => d.nome),
+    datasets: [
+      {
+        label: 'Orçado (%)',
+        data: distribuicaoGrupo.dados.map(d => d.percentual),
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(249, 115, 22, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+          'rgba(236, 72, 153, 0.8)',
+          'rgba(14, 165, 233, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+        ],
+        borderColor: [
+          'rgb(59, 130, 246)',
+          'rgb(16, 185, 129)',
+          'rgb(249, 115, 22)',
+          'rgb(168, 85, 247)',
+          'rgb(236, 72, 153)',
+          'rgb(14, 165, 233)',
+          'rgb(34, 197, 94)',
+          'rgb(239, 68, 68)',
+        ],
+        borderWidth: 2
+      }
+    ]
+  } : null;
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -166,6 +241,23 @@ export default function Dashboard() {
         ticks: {
           callback: function(value) {
             return formatCurrency(value);
+          }
+        }
+      }
+    }
+  };
+
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return context.label + ': ' + context.parsed + '%';
           }
         }
       }
@@ -386,6 +478,121 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Gráficos de Distribuição */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Distribuição por Categoria */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Distribuição por Categoria
+          </h2>
+          <div style={{ height: '300px' }}>
+            {pieCategoryData && <Doughnut data={pieCategoryData} options={pieChartOptions} />}
+          </div>
+        </div>
+
+        {/* Distribuição por Grupo */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Distribuição por Grupo
+          </h2>
+          <div style={{ height: '300px' }}>
+            {pieGroupData && <Doughnut data={pieGroupData} options={pieChartOptions} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Comparativo com Período Anterior */}
+      {comparativo && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Comparativo: {comparativo.periodo_atual.ano} vs {comparativo.periodo_anterior.ano}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Total Orçado */}
+            <div className="border rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-2">Total Orçado</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_atual.ano}</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {formatCurrency(comparativo.periodo_atual.dados.total_orcado)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_anterior.ano}</p>
+                  <p className="text-xl font-bold text-gray-600">
+                    {formatCurrency(comparativo.periodo_anterior.dados.total_orcado)}
+                  </p>
+                </div>
+                <div className={`pt-2 border-t ${
+                  comparativo.variacoes.total_orcado_pct >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  <p className="text-sm font-semibold">
+                    {comparativo.variacoes.total_orcado_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_orcado_pct.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Realizado */}
+            <div className="border rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-2">Total Realizado</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_atual.ano}</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {formatCurrency(comparativo.periodo_atual.dados.total_realizado)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_anterior.ano}</p>
+                  <p className="text-xl font-bold text-gray-600">
+                    {formatCurrency(comparativo.periodo_anterior.dados.total_realizado)}
+                  </p>
+                </div>
+                <div className={`pt-2 border-t ${
+                  comparativo.variacoes.total_realizado_pct >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  <p className="text-sm font-semibold">
+                    {comparativo.variacoes.total_realizado_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_realizado_pct.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Desvio Total */}
+            <div className="border rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-2">Desvio Total</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_atual.ano}</p>
+                  <p className={`text-xl font-bold ${
+                    comparativo.periodo_atual.dados.total_dif >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(comparativo.periodo_atual.dados.total_dif)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{comparativo.periodo_anterior.ano}</p>
+                  <p className={`text-xl font-bold ${
+                    comparativo.periodo_anterior.dados.total_dif >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(comparativo.periodo_anterior.dados.total_dif)}
+                  </p>
+                </div>
+                <div className={`pt-2 border-t ${
+                  comparativo.variacoes.total_dif_pct >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  <p className="text-sm font-semibold">
+                    {comparativo.variacoes.total_dif_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_dif_pct.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Resumo de KPIs do Sistema */}
       {kpis && (

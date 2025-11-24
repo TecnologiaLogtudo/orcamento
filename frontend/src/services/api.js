@@ -146,6 +146,8 @@ export const dashboardAPI = {
   getData: async (filtros = {}) => (await api.get('/dashboard', { params: filtros })).data,
   getKPIs: async (ano) => (await api.get('/dashboard/kpis', { params: { ano } })).data,
   getFiltros: async () => (await api.get('/dashboard/filtros')).data,
+  getComparativo: async (ano) => (await api.get('/dashboard/comparativo', { params: { ano } })).data,
+  getDistribuicao: async (filtros = {}) => (await api.get('/dashboard/distribuicao', { params: filtros })).data,
 };
 
 // ============= RELATÓRIOS =============
