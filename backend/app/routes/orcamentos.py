@@ -35,11 +35,11 @@ def list_orcamentos():
         # Filtros da tabela Categoria
         if uf:
             query = query.filter(Categoria.uf == uf)
-        if master:
+        if master and master.strip():
             query = query.filter(Categoria.master == master)
         if id_categoria:
             query = query.filter(Orcamento.id_categoria == id_categoria)
-        if categoria_filter:
+        if categoria_filter and categoria_filter.strip():
             query = query.filter(Categoria.categoria == categoria_filter)
         
         orcamentos = query.order_by(Orcamento.ano.desc(), 

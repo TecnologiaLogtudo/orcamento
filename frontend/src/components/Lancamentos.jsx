@@ -13,6 +13,7 @@ export default function Lancamentos() {
   const [modifiedIds, setModifiedIds] = useState(new Set());
   const [filtros, setFiltros] = useState({
     ano: new Date().getFullYear(),
+    mes: new Date().getMonth() + 1,
     master: '',
     uf: '',
     categoria: ''
@@ -22,12 +23,22 @@ export default function Lancamentos() {
     masters: [],
     ufs: [],
     categorias: [],
-    classes: []
+    classes: [],
+    meses: [
+      { valor: 1, nome: 'Janeiro' }, { valor: 2, nome: 'Fevereiro' }, { valor: 3, nome: 'Março' },
+      { valor: 4, nome: 'Abril' }, { valor: 5, nome: 'Maio' }, { valor: 6, nome: 'Junho' },
+      { valor: 7, nome: 'Julho' }, { valor: 8, nome: 'Agosto' }, { valor: 9, nome: 'Setembro' },
+      { valor: 10, nome: 'Outubro' }, { valor: 11, nome: 'Novembro' }, { valor: 12, nome: 'Dezembro' }
+    ]
   });
 
   useEffect(() => {
     loadFiltrosDisponiveis();
   }, []);
+
+  useEffect(() => {
+    loadOrcamentos();
+  }, [filtros.ano, filtros.mes, filtros.master, filtros.uf, filtros.categoria]);
 
   const loadFiltrosDisponiveis = useCallback(async () => {
     try {
@@ -54,48 +65,63 @@ export default function Lancamentos() {
 
   const loadOrcamentos = useCallback(async () => {
     setLoading(true);
-    try {
-      let response;
-      // Se o filtro de categoria for um id numérico, usamos o endpoint especial
-      const categoriaFiltro = filtros.categoria;
-      const categoriaId = typeof categoriaFiltro === 'number' ? categoriaFiltro : (categoriaFiltro ? parseInt(categoriaFiltro, 10) : null);
+    try {      
+      // 1. Buscar todas as categorias que correspondem aos filtros (master, uf, categoria)
+      const categoriasResponse = await categoriasAPI.list({
+        master: filtros.master,
+        uf: filtros.uf,
+        categoria: filtros.categoria
+      });
+      const todasCategorias = Array.isArray(categoriasResponse) ? categoriasResponse : [];
 
-      if (categoriaId && !isNaN(categoriaId)) {
-        response = await orcamentosAPI.getCategoriaAno(categoriaId, filtros.ano);
-        // Alguns endpoints retornam { meses: [...] } ou um array direto
-        const orcList = response?.meses || response?.orcamentos || response || [];
-        setOrcamentos(orcList);
-        setOriginalOrcamentos(JSON.parse(JSON.stringify(orcList)));
-      } else {
-        response = await orcamentosAPI.list(filtros);
-        const orcList = response?.orcamentos || response || [];
-        setOrcamentos(orcList);
-        setOriginalOrcamentos(JSON.parse(JSON.stringify(orcList)));
-      }
+      // 2. Buscar os orçamentos existentes para o ano/mês selecionado
+      const orcamentosResponse = await orcamentosAPI.list({
+        ano: filtros.ano,
+        mes: filtros.mes,
+        master: filtros.master,
+        uf: filtros.uf,
+        categoria: filtros.categoria
+      });
+      const orcamentosExistentes = Array.isArray(orcamentosResponse) ? orcamentosResponse : [];
+      const orcamentosMap = new Map(orcamentosExistentes.map(o => [o.id_categoria, o]));
+
+      // 3. Mesclar as duas listas
+      const orcamentosCompletos = todasCategorias.map(cat => {
+        const orcamentoExistente = orcamentosMap.get(cat.id_categoria);
+        return orcamentoExistente || {
+          id_categoria: cat.id_categoria,
+          categoria: cat,
+          mes: filtros.mes,
+          ano: filtros.ano,
+          orcado: 0,
+          realizado: 0,
+          dif: 0,
+          status: 'rascunho'
+        };
+      });
+
+      setOrcamentos(orcamentosCompletos);
+      setOriginalOrcamentos(JSON.parse(JSON.stringify(orcamentosCompletos)));
       setModifiedIds(new Set());
     } catch (error) {
       console.error('Erro ao carregar orçamentos:', error);
     } finally {
       setLoading(false);
     }
-  }, [filtros]);
-
-  useEffect(() => {
-    loadOrcamentos();
-  }, [loadOrcamentos]);
-
+  }, [filtros]); // Dependência do objeto de filtros completo
 
   const handleFiltroChange = (e) => {
     const { name, value } = e.target;
     setFiltros(prev => ({
       ...prev,
-      [name]: name === 'ano' ? (value === '' ? '' : parseInt(value, 10)) : value
+      [name]: (name === 'ano' || name === 'mes') ? (value === '' ? '' : parseInt(value, 10)) : value
     }));
   };
 
   const handleLimparFiltros = () => {
     const currentYear = new Date().getFullYear();
     setFiltros({
+      mes: new Date().getMonth() + 1,
       ano: opcoesFiltro.anos?.includes(currentYear) ? currentYear : (opcoesFiltro.anos?.[0] || currentYear),
       master: '',
       uf: '',
@@ -194,7 +220,17 @@ export default function Lancamentos() {
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+          <select name="ano" value={filtros.ano} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            {(opcoesFiltro.anos && opcoesFiltro.anos.length > 0)
+              ? opcoesFiltro.anos.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)
+              : <option value={filtros.ano}>{filtros.ano}</option>
+            }
+          </select>
+          <select name="mes" value={filtros.mes} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <option value="">Todos os Meses</option>
+            {opcoesFiltro.meses.map(m => <option key={`mes-${m.valor}`} value={m.valor}>{m.nome}</option>)}
+          </select>
           <select name="categoria" value={filtros.categoria} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
             <option value="">Todas as Categorias</option>            
             {opcoesFiltro.categorias?.map((cat) => (
@@ -208,12 +244,6 @@ export default function Lancamentos() {
           <select name="uf" value={filtros.uf} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
             <option value="">Todas as UFs</option>
             {opcoesFiltro.ufs?.map(u => <option key={`uf-${u}`} value={u}>{u}</option>)}
-          </select>
-          <select name="ano" value={filtros.ano} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-            {(opcoesFiltro.anos && opcoesFiltro.anos.length > 0)
-              ? opcoesFiltro.anos.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)
-              : <option value={filtros.ano}>{filtros.ano}</option>
-            }
           </select>
         </div>
 
@@ -246,7 +276,6 @@ export default function Lancamentos() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mês</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">C. Custo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grupo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">UF</th>
@@ -258,11 +287,10 @@ export default function Lancamentos() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {orcamentos.map((orc) => (
-              <tr key={orc.id_orcamento || `${orc.id_categoria}-${orc.mes}`} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{orc.mes}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria.master}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria.grupo}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria.uf}</td>
+              <tr key={orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.master || ''}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.grupo || ''}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.uf || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                   {canEdit ? (
                     <input
@@ -292,7 +320,7 @@ export default function Lancamentos() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(orc.status)}`}>
-                    {orc.status.replace('_', ' ')}
+                    {(orc.status || '').replace('_', ' ')}
                   </span>
                 </td>
               </tr>
