@@ -134,6 +134,7 @@ export const orcamentosAPI = {
     return (await api.post('/orcamentos/batch_reprove', payload)).data;
   },
   getSubmissions: async () => (await api.get('/orcamentos/submissions')).data,
+  getRejections: async () => (await api.get('/orcamentos/rejections')).data,
   aprovar: async (id) => (await api.post(`/orcamentos/${id}/aprovar`)).data,
   reprovar: async (id, motivo) => (await api.post(`/orcamentos/${id}/reprovar`, { motivo })).data,
   delete: async (id) => (await api.delete(`/orcamentos/${id}`)).data,

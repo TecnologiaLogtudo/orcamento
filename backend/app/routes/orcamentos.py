@@ -256,6 +256,7 @@ def batch_reprove_orcamentos():
         orcamento_ids = data['ids']
         updated_count = 0
         errors = []
+        reprovados_detalhes = []
 
         for orc_id in orcamento_ids:
             orcamento = Orcamento.query.get(orc_id)
@@ -268,19 +269,41 @@ def batch_reprove_orcamentos():
             orcamento.data_aprovacao = None
             orcamento.atualizado_por = user_id
             updated_count += 1
+            
+            # Coletar informações para o log
+            categoria = Categoria.query.get(orcamento.id_categoria)
+            if categoria:
+                reprovados_detalhes.append({
+                    'id_orcamento': orcamento.id_orcamento,
+                    'id_categoria': orcamento.id_categoria,
+                    'categoria_nome': categoria.categoria,
+                    'master': categoria.master,
+                    'uf': categoria.uf,
+                    'grupo': categoria.grupo,
+                    'mes': orcamento.mes,
+                    'ano': orcamento.ano
+                })
 
         db.session.commit()
 
-        # Registrar no log
-        log = Log(
-            id_usuario=current_user.id_usuario,
-            acao=f'Reprovação em lote: {updated_count} reprovados',
-            tabela_afetada='orcamentos',
-            id_registro=None,
-            detalhes={'ids': orcamento_ids, 'motivo': motivo, 'atualizados': updated_count, 'erros': len(errors)}
-        )
-        db.session.add(log)
-        db.session.commit()
+        # Registrar reprovação no log com detalhes para rastreamento pelo admin
+        if reprovados_detalhes:
+            log = Log(
+                id_usuario=current_user.id_usuario,
+                acao=f'Reprovação em lote: {updated_count} orçamentos rejeitados',
+                tabela_afetada='orcamentos',
+                id_registro=None,
+                detalhes={
+                    'orcamentos_reprovados': reprovados_detalhes,
+                    'total_reprovados': updated_count,
+                    'motivo': motivo,
+                    'gestor_usuario': current_user.nome,
+                    'erros': len(errors),
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            )
+            db.session.add(log)
+            db.session.commit()
 
         return jsonify({'message': f'{updated_count} orçamentos reprovados.', 'errors': errors}), 200
     except Exception as e:
@@ -691,6 +714,105 @@ def get_submissions():
                 'categorias': list(set([o.get('categoria_nome') for o in orcamentos_sem_log if o.get('categoria_nome')])),
             }
             resultado.insert(0, virtual_submission)  # Adicionar no início
+
+        return jsonify(resultado), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/orcamentos/rejections', methods=['GET'])
+@jwt_required()
+def get_rejections():
+    """Retorna rejeições de orçamentos para o admin (logs com detalhes de reprovações em lote e individuais)"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if current_user.papel != 'admin':
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        resultado = []
+
+        # 1. Buscar logs de reprovação em lote (ação contém 'Reprovação em lote')
+        logs_lote = db.session.query(Log).filter(
+            Log.acao.contains('Reprovação em lote'),
+            Log.tabela_afetada == 'orcamentos'
+        ).order_by(Log.timestamp.desc()).all()
+
+        for log in logs_lote:
+            detalhes = log.detalhes or {}
+            orcamentos_reprovados = detalhes.get('orcamentos_reprovados', [])
+            
+            rejection = {
+                'id_log': log.id_log,
+                'data': log.timestamp.isoformat() if log.timestamp else None,
+                'gestor_usuario': detalhes.get('gestor_usuario', log.usuario.nome if log.usuario else 'Desconhecido'),
+                'total_reprovados': detalhes.get('total_reprovados', 0),
+                'motivo': detalhes.get('motivo', 'Sem motivo especificado'),
+                'tipo': 'lote',
+                'orcamentos': orcamentos_reprovados,
+                'masters': list(set([o.get('master') for o in orcamentos_reprovados if o.get('master')])),
+                'ufs': list(set([o.get('uf') for o in orcamentos_reprovados if o.get('uf')])),
+                'categorias': list(set([o.get('categoria_nome') for o in orcamentos_reprovados if o.get('categoria_nome')])),
+            }
+            resultado.append(rejection)
+
+        # 2. Buscar logs de reprovações individuais (ação contém 'Reprovou')
+        logs_individuais = db.session.query(Log).filter(
+            Log.acao.contains('Reprovou'),
+            Log.tabela_afetada == 'orcamentos'
+        ).order_by(Log.timestamp.desc()).all()
+
+        # Agrupar reprovações individuais por data/gestor
+        reprovacoes_por_gestor = {}
+        for log in logs_individuais:
+            detalhes = log.detalhes or {}
+            orcamento = detalhes.get('orcamento', {})
+            motivo = detalhes.get('motivo', 'Sem motivo especificado')
+            
+            # Chave para agrupar: data do log + id do usuário + motivo
+            key = (log.timestamp, log.id_usuario, motivo)
+            
+            if key not in reprovacoes_por_gestor:
+                reprovacoes_por_gestor[key] = {
+                    'id_log': log.id_log,
+                    'data': log.timestamp.isoformat() if log.timestamp else None,
+                    'gestor_usuario': log.usuario.nome if log.usuario else 'Desconhecido',
+                    'motivo': motivo,
+                    'tipo': 'individual',
+                    'orcamentos': [],
+                    'masters': set(),
+                    'ufs': set(),
+                    'categorias': set(),
+                }
+            
+            if orcamento:
+                categoria = Categoria.query.get(orcamento.get('id_categoria'))
+                orc_detail = {
+                    'id_orcamento': orcamento.get('id_orcamento'),
+                    'id_categoria': orcamento.get('id_categoria'),
+                    'categoria_nome': categoria.categoria if categoria else 'Desconhecida',
+                    'master': categoria.master if categoria else '-',
+                    'uf': categoria.uf if categoria else '-',
+                    'grupo': categoria.grupo if categoria else '-',
+                    'mes': orcamento.get('mes'),
+                    'ano': orcamento.get('ano'),
+                }
+                reprovacoes_por_gestor[key]['orcamentos'].append(orc_detail)
+                if categoria:
+                    reprovacoes_por_gestor[key]['masters'].add(categoria.master)
+                    reprovacoes_por_gestor[key]['ufs'].add(categoria.uf)
+                    reprovacoes_por_gestor[key]['categorias'].add(categoria.categoria)
+
+        # Converter sets para lists e calcular total
+        for rejection_group in reprovacoes_por_gestor.values():
+            rejection_group['total_reprovados'] = len(rejection_group['orcamentos'])
+            rejection_group['masters'] = list(rejection_group['masters'])
+            rejection_group['ufs'] = list(rejection_group['ufs'])
+            rejection_group['categorias'] = list(rejection_group['categorias'])
+            resultado.append(rejection_group)
+
+        # Ordenar por data decrescente
+        resultado.sort(key=lambda x: x['data'] if x['data'] else '', reverse=True)
 
         return jsonify(resultado), 200
     except Exception as e:

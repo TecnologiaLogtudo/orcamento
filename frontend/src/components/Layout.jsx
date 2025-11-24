@@ -49,6 +49,12 @@ export default function Layout() {
       roles: ['gestor'] 
     },
     { 
+      name: 'Reprovações', 
+      path: '/rejeicoes', 
+      icon: FileText, 
+      roles: ['admin'] 
+    },
+    { 
       name: 'Relatórios', 
       path: '/relatorios', 
       icon: BarChart3, 

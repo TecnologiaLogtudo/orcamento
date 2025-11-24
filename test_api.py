@@ -1,7 +1,7 @@
 import requests
 import json
 
-# Fazer login como admin (para ter um token válido)
+# Fazer login como admin
 response = requests.post('http://localhost:5000/api/login', json={
     'email': 'admin@empresa.com',
     'senha': 'admin123'
@@ -15,32 +15,37 @@ if response.status_code != 200:
 admin_token = response.json()['access_token']
 print('✓ Admin logado com sucesso\n')
 
-# Tentar fazer login como gestor
-response = requests.post('http://localhost:5000/api/login', json={
-    'email': 'gestor@empresa.com',
-    'senha': 'gestor123'
+# Chamar endpoint de rejections
+print('=== TESTANDO ENDPOINT /orcamentos/rejections ===')
+response = requests.get('http://localhost:5000/api/orcamentos/rejections', headers={
+    'Authorization': f'Bearer {admin_token}'
 })
 
-if response.status_code == 200:
-    gestor_token = response.json()['access_token']
-    print('✓ Gestor logado com sucesso\n')
-    
-    # Chamar endpoint de submissões como gestor
-    response = requests.get('http://localhost:5000/api/orcamentos/submissions', headers={
-        'Authorization': f'Bearer {gestor_token}'
-    })
-    
-    print(f'Status code: {response.status_code}')
-    data = response.json()
-    print(f'\nTotal de submissões: {len(data)}')
-    for i, submission in enumerate(data, 1):
-        print(f"\n{i}. Submissão:")
-        print(f"   Admin: {submission['admin_usuario']}")
-        print(f"   Data: {submission['data']}")
-        print(f"   Total: {submission['total_submetidos']}")
-        print(f"   Masters: {submission['masters']}")
-        print(f"   UFs: {submission['ufs']}")
-        print(f"   Categorias: {submission['categorias']}")
+print(f'Status code: {response.status_code}')
+if response.status_code != 200:
+    print(f'Erro: {response.text}')
 else:
-    print(f'Erro ao fazer login como gestor: {response.status_code}')
-    print(response.text)
+    data = response.json()
+    print(f'Total de reprovações: {len(data)}')
+    if data:
+        print('\nPrimeira reprovação:')
+        print(json.dumps(data[0], indent=2, ensure_ascii=False))
+
+# Verificar logs com "Reprovação" no banco
+print('\n=== VERIFICANDO LOGS COM "REPROVAÇÃO" ===')
+import sys
+sys.path.insert(0, 'backend')
+from app import create_app
+from app.models import db, Log
+
+app = create_app()
+
+with app.app_context():
+    logs = Log.query.filter(Log.acao.contains('Reprovação')).all()
+    print(f'Total de logs com "Reprovação": {len(logs)}')
+    for log in logs:
+        print(f'\nID: {log.id_log}')
+        print(f'Ação: {log.acao}')
+        print(f'Detalhes: {log.detalhes}')
+
+
