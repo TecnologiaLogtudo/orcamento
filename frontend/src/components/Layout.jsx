@@ -43,6 +43,12 @@ export default function Layout() {
       roles: ['admin', 'gestor'] 
     },
     { 
+      name: 'Submissões', 
+      path: '/submissoes', 
+      icon: FileText, 
+      roles: ['gestor'] 
+    },
+    { 
       name: 'Relatórios', 
       path: '/relatorios', 
       icon: BarChart3, 

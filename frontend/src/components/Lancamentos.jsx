@@ -5,7 +5,15 @@ import { Filter, RotateCcw, Save, Loader2, Send, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Lancamentos() {
-  const { user, canEdit, canApprove } = useAuth();
+  const { user, canEdit, canApprove, isAdmin } = useAuth();
+    const [notification, setNotification] = useState(null); // { type: 'success'|'error'|'info', message }
+
+    const showNotification = (type, message, timeout = 4000) => {
+      setNotification({ type, message });
+      if (timeout > 0) {
+        setTimeout(() => setNotification(null), timeout);
+      }
+    };
   const [orcamentos, setOrcamentos] = useState([]);
   const [originalOrcamentos, setOriginalOrcamentos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -35,6 +43,25 @@ export default function Lancamentos() {
 
   useEffect(() => {
     loadFiltrosDisponiveis();
+  }, []);
+
+  // Aplicar filtros de sessionStorage quando vindo de Submissões
+  useEffect(() => {
+    const storedFilters = sessionStorage.getItem('lancamentosFilters');
+    if (storedFilters) {
+      try {
+        const filters = JSON.parse(storedFilters);
+        setFiltros(prev => ({
+          ...prev,
+          master: filters.masters?.[0] || '',
+          uf: filters.ufs?.[0] || '',
+          categoria: filters.categorias?.[0] || ''
+        }));
+        sessionStorage.removeItem('lancamentosFilters');
+      } catch (error) {
+        console.error('Erro ao aplicar filtros de sessionStorage:', error);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -142,32 +169,32 @@ export default function Lancamentos() {
     setSaving(true);
     try {
       await orcamentosAPI.batchApprove(ids);
-      alert(`${ids.length} orçamentos aprovados com sucesso.`);
+      showNotification('success', `${ids.length} orçamentos aprovados com sucesso.`);
       setSelectedIds(new Set());
       loadOrcamentos();
     } catch (error) {
-      alert('Erro ao aprovar orçamentos: ' + (error.response?.data?.error || error.message));
+      showNotification('error', 'Erro ao aprovar orçamentos: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
     }
   };
 
   const handleBatchReprove = async () => {
-    const ids = Array.from(selectedIds);
+          showNotification('success', `${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
     if (ids.length === 0) {
       alert('Nenhum orçamento selecionado para reprovação.');
-      return;
+          showNotification('error', 'Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
     }
     const motivo = prompt('Motivo da reprovação (opcional):', '');
     if (!confirm(`Confirmar reprovação de ${ids.length} orçamentos?`)) return;
     setSaving(true);
     try {
       await orcamentosAPI.batchReprove(ids, motivo);
-      alert(`${ids.length} orçamentos reprovados com sucesso.`);
+      showNotification('success', `${ids.length} orçamentos reprovados com sucesso.`);
       setSelectedIds(new Set());
       loadOrcamentos();
     } catch (error) {
-      alert('Erro ao reprovar orçamentos: ' + (error.response?.data?.error || error.message));
+      showNotification('error', 'Erro ao reprovar orçamentos: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
     }
@@ -222,7 +249,7 @@ export default function Lancamentos() {
     });
 
     if (modifiedOrcamentos.length === 0) {
-      alert('Nenhum rascunho modificado para enviar.');
+      showNotification('info', 'Nenhum rascunho modificado para enviar.');
       return;
     }
 
@@ -249,9 +276,10 @@ export default function Lancamentos() {
       }
 
       alert(`${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
+        showNotification('success', `${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
       loadOrcamentos();
     } catch (error) {
-      alert('Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
+        showNotification('error', 'Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
     }
@@ -274,10 +302,10 @@ export default function Lancamentos() {
           throw new Error('Ação de status desconhecida.');
       }
       await apiCall;
-      alert(`Orçamento atualizado com sucesso!`);
+      showNotification('success', `Orçamento atualizado com sucesso!`);
       loadOrcamentos(); // Recarrega para refletir a mudança de status
     } catch (error) {
-      alert('Erro ao atualizar status: ' + (error.response?.data?.error || error.message));
+      showNotification('error', 'Erro ao atualizar status: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -350,6 +378,11 @@ export default function Lancamentos() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className={`fixed right-4 top-4 z-50 max-w-sm w-full shadow-lg rounded-md p-3 text-sm font-medium ${notification.type === 'success' ? 'bg-green-50 text-green-800' : notification.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
+          {notification.message}
+        </div>
+      )}
       {/* Header e Filtros */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -390,7 +423,7 @@ export default function Lancamentos() {
           </select>
         </div>
 
-        {canEdit() && modifiedIds.size > 0 && orcamentos.some(o => modifiedIds.has(o.id_orcamento || `${o.id_categoria}-${o.mes}-${o.ano}`) && o.status === 'rascunho') && (
+        {isAdmin() && modifiedIds.size > 0 && orcamentos.some(o => modifiedIds.has(o.id_orcamento || `${o.id_categoria}-${o.mes}-${o.ano}`) && o.status === 'rascunho') && (
           <div className="mt-4 flex justify-end">
             <button
               onClick={handleSendForApproval}

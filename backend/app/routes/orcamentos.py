@@ -101,7 +101,7 @@ def create_or_update_orcamento():
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
         
-        if current_user.papel not in ['admin', 'gestor']:
+        if current_user.papel != 'admin':
             return jsonify({'error': 'Acesso negado'}), 403
         
         data = request.get_json()
@@ -191,7 +191,7 @@ def batch_approve_orcamentos():
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
 
-        if current_user.papel not in ['gestor', 'admin']:
+        if current_user.papel != 'gestor':
             return jsonify({'error': 'Acesso negado'}), 403
 
         data = request.get_json()
@@ -427,7 +427,7 @@ def batch_submit_orcamentos():
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
 
-        if current_user.papel not in ['admin', 'gestor']:
+        if current_user.papel != 'admin':
             return jsonify({'error': 'Acesso negado'}), 403
 
         data = request.get_json()
@@ -437,6 +437,7 @@ def batch_submit_orcamentos():
         orcamento_ids = data['ids']
         updated_count = 0
         errors = []
+        submitted_orcamentos = []
 
         for orc_id in orcamento_ids:
             orcamento = Orcamento.query.get(orc_id)
@@ -448,8 +449,38 @@ def batch_submit_orcamentos():
                 orcamento.status = 'aguardando_aprovacao'
                 orcamento.atualizado_por = user_id
                 updated_count += 1
+                # Coletar informações para o log
+                categoria = Categoria.query.get(orcamento.id_categoria)
+                if categoria:
+                    submitted_orcamentos.append({
+                        'id_orcamento': orcamento.id_orcamento,
+                        'id_categoria': orcamento.id_categoria,
+                        'categoria_nome': categoria.categoria,
+                        'master': categoria.master,
+                        'uf': categoria.uf,
+                        'grupo': categoria.grupo,
+                        'mes': orcamento.mes,
+                        'ano': orcamento.ano
+                    })
 
         db.session.commit()
+
+        # Registrar submissão no log com detalhes para rastreamento pelo gestor
+        if submitted_orcamentos:
+            log = Log(
+                id_usuario=current_user.id_usuario,
+                acao=f'Submissão em lote: {updated_count} orçamentos enviados para aprovação',
+                tabela_afetada='orcamentos',
+                id_registro=None,
+                detalhes={
+                    'orcamentos_submetidos': submitted_orcamentos,
+                    'total_submetidos': updated_count,
+                    'erros': len(errors),
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            )
+            db.session.add(log)
+            db.session.commit()
 
         return jsonify({
             'message': f'{updated_count} orçamentos enviados para aprovação.',
@@ -579,4 +610,88 @@ def delete_orcamento(id_orcamento):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/orcamentos/submissions', methods=['GET'])
+@jwt_required()
+def get_submissions():
+    """Retorna submissões de orçamentos para o gestor (logs com detalhes de submissões + orçamentos soltos em aguardando_aprovacao)"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if current_user.papel != 'gestor':
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        # 1. Buscar logs de submissão em lote (ação contém 'Submissão em lote')
+        logs = db.session.query(Log).filter(
+            Log.acao.contains('Submissão em lote'),
+            Log.tabela_afetada == 'orcamentos'
+        ).order_by(Log.timestamp.desc()).all()
+
+        resultado = []
+        orcamento_ids_em_logs = set()
+        
+        for log in logs:
+            # Extrair detalhes do log
+            detalhes = log.detalhes or {}
+            orcamentos_submetidos = detalhes.get('orcamentos_submetidos', [])
+            
+            # Coletar IDs dos orçamentos neste log
+            for orc in orcamentos_submetidos:
+                orcamento_ids_em_logs.add(orc.get('id_orcamento'))
+            
+            # Agrupar por master, uf, categoria para exibição
+            submission = {
+                'id_log': log.id_log,
+                'data': log.timestamp.isoformat() if log.timestamp else None,
+                'admin_usuario': log.usuario.nome if log.usuario else 'Desconhecido',
+                'total_submetidos': detalhes.get('total_submetidos', 0),
+                'orcamentos': orcamentos_submetidos,
+                # Agrupar únicos para filtro rápido
+                'masters': list(set([o.get('master') for o in orcamentos_submetidos if o.get('master')])),
+                'ufs': list(set([o.get('uf') for o in orcamentos_submetidos if o.get('uf')])),
+                'categorias': list(set([o.get('categoria_nome') for o in orcamentos_submetidos if o.get('categoria_nome')])),
+            }
+            resultado.append(submission)
+        
+        # 2. Buscar orçamentos em 'aguardando_aprovacao' que não estão em nenhum log (foram adicionados manualmente)
+        orcamentos_soltos = Orcamento.query.filter(
+            Orcamento.status == 'aguardando_aprovacao'
+        ).all()
+        
+        # Criar uma "submissão virtual" para os orçamentos sem log
+        orcamentos_sem_log = []
+        for orc in orcamentos_soltos:
+            if orc.id_orcamento not in orcamento_ids_em_logs:
+                categoria = Categoria.query.get(orc.id_categoria)
+                if categoria:
+                    orcamentos_sem_log.append({
+                        'id_orcamento': orc.id_orcamento,
+                        'id_categoria': orc.id_categoria,
+                        'categoria_nome': categoria.categoria,
+                        'master': categoria.master,
+                        'uf': categoria.uf,
+                        'grupo': categoria.grupo,
+                        'mes': orc.mes,
+                        'ano': orc.ano
+                    })
+        
+        # Se houver orçamentos sem log, criar uma submissão virtual
+        if orcamentos_sem_log:
+            virtual_submission = {
+                'id_log': None,  # Sem log real
+                'data': None,
+                'admin_usuario': 'Importado',
+                'total_submetidos': len(orcamentos_sem_log),
+                'orcamentos': orcamentos_sem_log,
+                'masters': list(set([o.get('master') for o in orcamentos_sem_log if o.get('master')])),
+                'ufs': list(set([o.get('uf') for o in orcamentos_sem_log if o.get('uf')])),
+                'categorias': list(set([o.get('categoria_nome') for o in orcamentos_sem_log if o.get('categoria_nome')])),
+            }
+            resultado.insert(0, virtual_submission)  # Adicionar no início
+
+        return jsonify(resultado), 200
+    except Exception as e:
         return jsonify({'error': str(e)}), 500

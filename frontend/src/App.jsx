@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Categorias from './components/Categorias';
 import Lancamentos from './components/Lancamentos';
+import Submissoes from './components/Submissoes';
 import Relatorios from './components/Relatorios';
 import Usuarios from './components/Usuarios';
 import Logs from './components/Logs';
@@ -90,6 +91,12 @@ function AppRoutes() {
         <Route path="lancamentos" element={
           <RestrictedRoute allowedRoles={['admin', 'gestor']}>
             <Lancamentos />
+          </RestrictedRoute>
+        } />
+        
+        <Route path="submissoes" element={
+          <RestrictedRoute allowedRoles={['gestor']}>
+            <Submissoes />
           </RestrictedRoute>
         } />
         

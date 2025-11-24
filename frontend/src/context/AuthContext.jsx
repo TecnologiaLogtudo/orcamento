@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
   const isVisualizador = () => user?.papel === 'visualizador';
 
   const canEdit = () => ['admin', 'gestor'].includes(user?.papel);
-  const canApprove = () => ['admin', 'gestor'].includes(user?.papel);
+  const canApprove = () => user?.papel === 'gestor';
 
   const value = {
     user,
