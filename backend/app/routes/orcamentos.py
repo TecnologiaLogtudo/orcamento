@@ -240,7 +240,7 @@ def batch_approve_orcamentos():
 @bp.route('/orcamentos/batch_reprove', methods=['POST'])
 @jwt_required()
 def batch_reprove_orcamentos():
-    """Reprova (volta para rascunho) múltiplos orçamentos em lote (gestor/admin)"""
+    """Reprova (marca como reprovado) múltiplos orçamentos em lote (gestor/admin)"""
     try:
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
@@ -264,7 +264,7 @@ def batch_reprove_orcamentos():
                 errors.append(f'Orçamento com ID {orc_id} não encontrado.')
                 continue
 
-            orcamento.status = 'rascunho'
+            orcamento.status = 'reprovado'
             orcamento.aprovado_por = None
             orcamento.data_aprovacao = None
             orcamento.atualizado_por = user_id
@@ -557,7 +557,7 @@ def aprovar_orcamento(id_orcamento):
 @bp.route('/orcamentos/<int:id_orcamento>/reprovar', methods=['POST'])
 @jwt_required()
 def reprovar_orcamento(id_orcamento):
-    """Reprova um orçamento (apenas gestor ou admin)"""
+    """Reprova um orçamento (apenas gestor ou admin) — marca como 'reprovado'"""
     try:
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
@@ -572,7 +572,7 @@ def reprovar_orcamento(id_orcamento):
         data = request.get_json()
         motivo = data.get('motivo', 'Sem motivo especificado')
         
-        orcamento.status = 'rascunho'
+        orcamento.status = 'reprovado'
         orcamento.aprovado_por = None
         orcamento.data_aprovacao = None
         

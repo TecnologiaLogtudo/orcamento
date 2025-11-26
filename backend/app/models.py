@@ -102,7 +102,7 @@ class Orcamento(db.Model):
     realizado = db.Column(db.Numeric(15, 2), default=0.00)
     dif = db.Column(db.Numeric(15, 2), default=0.00)
     
-    status = db.Column(db.Enum('rascunho', 'aguardando_aprovacao', 'aprovado'), default='rascunho')
+    status = db.Column(db.Enum('rascunho', 'aguardando_aprovacao', 'aprovado', 'reprovado'), default='rascunho')
     aprovado_por = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario', ondelete='SET NULL'))
     data_aprovacao = db.Column(db.DateTime)
     

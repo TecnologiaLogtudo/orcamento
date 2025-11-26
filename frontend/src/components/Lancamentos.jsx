@@ -3,10 +3,28 @@ import { orcamentosAPI } from '../services/api';
 import { categoriasAPI } from '../services/api';
 import { Filter, RotateCcw, Save, Loader2, Send, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
+import PromptModal from './PromptModal';
 
 export default function Lancamentos() {
   const { user, canEdit, canApprove, isAdmin } = useAuth();
     const [notification, setNotification] = useState(null); // { type: 'success'|'error'|'info', message }
+
+    // Modal States
+    const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '' });
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+    const showAlert = (title, message) => setAlertModal({ isOpen: true, title, message });
+    const showConfirm = (title, message, onConfirm) => setConfirmModal({ isOpen: true, title, message, onConfirm });
+    const showPrompt = (title, message, onConfirm) => setPromptModal({ isOpen: true, title, message, onConfirm });
+
+    const closeModal = () => {
+      setAlertModal({ ...alertModal, isOpen: false });
+      setConfirmModal({ ...confirmModal, isOpen: false });
+      setPromptModal({ ...promptModal, isOpen: false });
+    };
 
     const showNotification = (type, message, timeout = 4000) => {
       setNotification({ type, message });
@@ -162,42 +180,54 @@ export default function Lancamentos() {
   const handleBatchApprove = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) {
-      alert('Nenhum orçamento selecionado para aprovação.');
+      showAlert('Atenção', 'Nenhum orçamento selecionado para aprovação.');
       return;
     }
-    if (!confirm(`Confirmar aprovação de ${ids.length} orçamentos?`)) return;
-    setSaving(true);
-    try {
-      await orcamentosAPI.batchApprove(ids);
-      showNotification('success', `${ids.length} orçamentos aprovados com sucesso.`);
-      setSelectedIds(new Set());
-      loadOrcamentos();
-    } catch (error) {
-      showNotification('error', 'Erro ao aprovar orçamentos: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setSaving(false);
-    }
+
+    showConfirm('Confirmar Aprovação', `Deseja realmente aprovar ${ids.length} orçamento(s)?`, async () => {
+      setSaving(true);
+      try {
+        await orcamentosAPI.batchApprove(ids);
+        showNotification('success', `${ids.length} orçamentos aprovados com sucesso.`);
+        setSelectedIds(new Set());
+        loadOrcamentos();
+      } catch (error) {
+        showNotification('error', 'Erro ao aprovar orçamentos: ' + (error.response?.data?.error || error.message));
+      } finally {
+        setSaving(false);
+      }
+    });
   };
 
   const handleBatchReprove = async () => {
-          showNotification('success', `${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
+    const ids = Array.from(selectedIds);
     if (ids.length === 0) {
-      alert('Nenhum orçamento selecionado para reprovação.');
-          showNotification('error', 'Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
+      showAlert('Atenção', 'Nenhum orçamento selecionado para reprovação.');
+      return;
     }
-    const motivo = prompt('Motivo da reprovação (opcional):', '');
-    if (!confirm(`Confirmar reprovação de ${ids.length} orçamentos?`)) return;
-    setSaving(true);
-    try {
-      await orcamentosAPI.batchReprove(ids, motivo);
-      showNotification('success', `${ids.length} orçamentos reprovados com sucesso.`);
-      setSelectedIds(new Set());
-      loadOrcamentos();
-    } catch (error) {
-      showNotification('error', 'Erro ao reprovar orçamentos: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setSaving(false);
-    }
+
+    showPrompt('Motivo da Reprovação', 'Por favor, informe o motivo da reprovação para o lote:', async (motivo) => {
+      if (!motivo || motivo.trim() === '') {
+        closeModal();
+        setTimeout(() => showAlert('Erro de Validação', 'O motivo da reprovação é obrigatório.'), 10);
+        return;
+      }
+      closeModal();
+
+      setTimeout(() => showConfirm('Confirmar Reprovação', `Deseja realmente reprovar ${ids.length} orçamentos com o motivo "${motivo}"?`, async () => {
+        setSaving(true);
+        try {
+          await orcamentosAPI.batchReprove(ids, motivo);
+          showNotification('success', `${ids.length} orçamentos reprovados com sucesso.`);
+          setSelectedIds(new Set());
+          loadOrcamentos();
+        } catch (error) {
+          showNotification('error', 'Erro ao reprovar orçamentos: ' + (error.response?.data?.error || error.message));
+        } finally {
+          setSaving(false);
+        }
+      }), 10);
+    });
   };
 
   const handleFiltroChange = (e) => {
@@ -275,8 +305,7 @@ export default function Lancamentos() {
         await orcamentosAPI.batchSubmit(idsToSubmit);
       }
 
-      alert(`${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
-        showNotification('success', `${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
+      showNotification('success', `${modifiedOrcamentos.length} orçamento(s) enviado(s) para aprovação com sucesso!`);
       loadOrcamentos();
     } catch (error) {
         showNotification('error', 'Erro ao enviar para aprovação: ' + (error.response?.data?.error || error.message));
@@ -285,27 +314,75 @@ export default function Lancamentos() {
     }
   };
 
-  const handleStatusChange = async (orcamentoId, newStatus) => {
+  const handleSaveChanges = async () => {
+    const modifiedOrcamentos = orcamentos.filter(orc => {
+      const uniqueId = orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`;
+      return modifiedIds.has(uniqueId) && orc.status === 'reprovado';
+    });
+
+    if (modifiedOrcamentos.length === 0) {
+      showNotification('info', 'Nenhum orçamento reprovado modificado para salvar.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      let apiCall;
-      switch (newStatus) {
-        case 'aprovado':
-          // Assumindo que a API tem um endpoint para aprovar
-          apiCall = orcamentosAPI.aprovar(orcamentoId);
-          break;
-        case 'rascunho': // Reprovar volta para rascunho
-          // Assumindo que a API tem um endpoint para reprovar
-          apiCall = orcamentosAPI.reprovar(orcamentoId);
-          break;
-        default:
-          // A submissão agora é em lote, então o caso 'aguardando_aprovacao' individual foi removido.
-          throw new Error('Ação de status desconhecida.');
-      }
-      await apiCall;
-      showNotification('success', `Orçamento atualizado com sucesso!`);
-      loadOrcamentos(); // Recarrega para refletir a mudança de status
+      const orcamentosPayload = modifiedOrcamentos.map(orc => {
+        const { categoria, ...rest } = orc;
+        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        return {
+          ...rest,
+          mes: mesObj ? mesObj.nome : rest.mes,
+          id_orcamento: rest.id_orcamento || null,
+          status: 'rascunho' // Ao salvar, volta para rascunho para novo ciclo
+        };
+      });
+
+      await orcamentosAPI.batchUpdate(orcamentosPayload);
+      
+      showNotification('success', `${modifiedOrcamentos.length} orçamento(s) salvos com sucesso como rascunho!`);
+      loadOrcamentos();
     } catch (error) {
-      showNotification('error', 'Erro ao atualizar status: ' + (error.response?.data?.error || error.message));
+        showNotification('error', 'Erro ao salvar alterações: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (orcamentoId, newStatus) => {
+    if (newStatus === 'reprovado') {
+      showPrompt('Motivo da Reprovação', 'Por favor, informe o motivo da reprovação:', async (motivo) => {
+        if (!motivo || motivo.trim() === '') {
+          closeModal();
+          setTimeout(() => showAlert('Erro de Validação', 'O motivo da reprovação é obrigatório.'), 10);
+          return;
+        }
+        closeModal();
+        
+        setSaving(true);
+        try {
+          await orcamentosAPI.reprovar(orcamentoId, motivo);
+          showNotification('success', 'Orçamento reprovado com sucesso!');
+          loadOrcamentos();
+        } catch (error) {
+          showNotification('error', 'Erro ao reprovar orçamento: ' + (error.response?.data?.error || error.message));
+        } finally {
+          setSaving(false);
+        }
+      });
+    } else if (newStatus === 'aprovado') {
+      showConfirm('Confirmar Aprovação', 'Deseja realmente aprovar este orçamento?', async () => {
+        setSaving(true);
+        try {
+          await orcamentosAPI.aprovar(orcamentoId);
+          showNotification('success', 'Orçamento aprovado com sucesso!');
+          loadOrcamentos();
+        } catch (error) {
+          showNotification('error', 'Erro ao aprovar orçamento: ' + (error.response?.data?.error || error.message));
+        } finally {
+          setSaving(false);
+        }
+      });
     }
   };
 
@@ -378,6 +455,27 @@ export default function Lancamentos() {
 
   return (
     <div className="space-y-6">
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={closeModal}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeModal}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+      />
+      <PromptModal
+        isOpen={promptModal.isOpen}
+        onClose={closeModal}
+        title={promptModal.title}
+        message={promptModal.message}
+        onConfirm={promptModal.onConfirm}
+      />
+
       {notification && (
         <div className={`fixed right-4 top-4 z-50 max-w-sm w-full shadow-lg rounded-md p-3 text-sm font-medium ${notification.type === 'success' ? 'bg-green-50 text-green-800' : notification.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
           {notification.message}
@@ -436,6 +534,22 @@ export default function Lancamentos() {
                 <Send size={20} />
               )}
               Enviar Rascunhos para Aprovação
+            </button>
+          </div>
+        )}
+        {isAdmin() && modifiedIds.size > 0 && orcamentos.some(o => modifiedIds.has(o.id_orcamento || `${o.id_categoria}-${o.mes}-${o.ano}`) && o.status === 'reprovado') && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleSaveChanges}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Save size={20} />
+              )}
+              Salvar Alterações (Reprovados)
             </button>
           </div>
         )}
@@ -504,8 +618,8 @@ export default function Lancamentos() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.grupo || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{orc.categoria?.uf || ''}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {/* Regra de edição: pode editar se tiver permissão E o status não for 'aprovado' */}
-                  {canEdit() && orc.status !== 'aprovado' ? (
+                  {/* Regra de edição: Apenas admins podem editar orçamentos reprovados. Outros status editáveis seguem a regra `canEdit`. */}
+                  {canEdit() && (orc.status !== 'aprovado' && (isAdmin() || orc.status !== 'reprovado')) ? (
                     <input
                       type="number"
                       value={orc.orcado || ''}
@@ -517,7 +631,7 @@ export default function Lancamentos() {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {canEdit() && (orc.status !== 'aprovado' || (orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano))) ? (
+                  {canEdit() && ((orc.status !== 'aprovado' && (isAdmin() || orc.status !== 'reprovado')) || (orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano))) ? (
                     <input
                       type="number"
                       value={orc.realizado || ''}
@@ -544,7 +658,7 @@ export default function Lancamentos() {
                         <button onClick={() => handleStatusChange(orc.id_orcamento, 'aprovado')} className="text-green-600 hover:text-green-900" title="Aprovar">
                           <Check size={18} />
                         </button>
-                        <button onClick={() => handleStatusChange(orc.id_orcamento, 'rascunho')} className="text-red-600 hover:text-red-900" title="Reprovar">
+                        <button onClick={() => handleStatusChange(orc.id_orcamento, 'reprovado')} className="text-red-600 hover:text-red-900" title="Reprovar">
                           <X size={18} />
                         </button>
                       </>
