@@ -23,11 +23,9 @@ export default function RejectionsLog({ onNavigateToLancamentos }) {
   };
 
   const handleNavigate = (rejection) => {
-    // Passar filtros ao componente pai para Lançamentos
     const filters = {
-      masters: rejection.masters,
-      ufs: rejection.ufs,
-      categorias: rejection.categorias,
+      status: 'reprovado',
+      ano: '',
     };
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);

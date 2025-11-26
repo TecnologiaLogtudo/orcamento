@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { orcamentosAPI } from '../services/api';
 import { categoriasAPI } from '../services/api';
 import { Filter, RotateCcw, Save, Loader2, Send, Check, X } from 'lucide-react';
@@ -9,6 +10,9 @@ import PromptModal from './PromptModal';
 
 export default function Lancamentos() {
   const { user, canEdit, canApprove, isAdmin } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const navAppliedRef = useRef(false);
     const [notification, setNotification] = useState(null); // { type: 'success'|'error'|'info', message }
 
     // Modal States
@@ -43,7 +47,8 @@ export default function Lancamentos() {
     mes: new Date().getMonth() + 1,
     master: '',
     uf: '',
-    categoria: ''
+    categoria: '',
+    status: '',
   });
   const [opcoesFiltro, setOpcoesFiltro] = useState({
     anos: [],
@@ -60,102 +65,131 @@ export default function Lancamentos() {
   });
 
   useEffect(() => {
-    loadFiltrosDisponiveis();
-  }, []);
+    const loadInitialData = async () => {
+        const stateFilters = location?.state;
+        if (stateFilters && !navAppliedRef.current) {
+          try {
+            const filters = stateFilters;
+            const newFilters = {
+              ano: filters.ano || '',
+              mes: filters.mes || '',
+              master: filters.master || '',
+              uf: filters.uf || '',
+              categoria: filters.categoria || '',
+              status: filters.status || '',
+            };
+            setFiltros(newFilters);
+            navAppliedRef.current = true;
+            // Limpar history.state diretamente para persistir entre desmontagens/montagens
+            try {
+              const url = window.location.pathname + window.location.search + window.location.hash;
+              window.history.replaceState(null, document.title, url);
+            } catch (err) {
+              console.error('Falha ao limpar history.state via replaceState:', err);
+            }
+            // Carregar imediatamente com os filtros aplicados para reduzir janela de inconsistência
+            try {
+              loadOrcamentos(newFilters);
+            } catch (err) {
+              // Se por algum motivo a função não estiver disponível, continuar normalmente
+              console.error('Erro ao disparar carga imediata de orçamentos:', err);
+            }
+          } catch (error) {
+            console.error('Erro ao aplicar filtros do location.state:', error);
+          }
+        }
 
-  // Aplicar filtros de sessionStorage quando vindo de Submissões
-  useEffect(() => {
-    const storedFilters = sessionStorage.getItem('lancamentosFilters');
-    if (storedFilters) {
       try {
-        const filters = JSON.parse(storedFilters);
-        setFiltros(prev => ({
+        const data = await orcamentosAPI.getFiltros();
+        setOpcoesFiltro(prev => ({
           ...prev,
-          master: filters.masters?.[0] || '',
-          uf: filters.ufs?.[0] || '',
-          categoria: filters.categorias?.[0] || ''
+          ...data,
+          categorias: data.categorias || [],
         }));
-        sessionStorage.removeItem('lancamentosFilters');
+        if (!navAppliedRef.current && data.anos && data.anos.length > 0) {
+          setFiltros(prev => ({ ...prev, ano: data.anos[0] }));
+        }
       } catch (error) {
-        console.error('Erro ao aplicar filtros de sessionStorage:', error);
+        console.error('Erro ao carregar filtros:', error);
       }
-    }
+    };
+
+    loadInitialData();
   }, []);
 
   useEffect(() => {
     loadOrcamentos();
-  }, [filtros.ano, filtros.mes, filtros.master, filtros.uf, filtros.categoria]);
+  }, [filtros]);
 
-  const loadFiltrosDisponiveis = useCallback(async () => {
-    try {
-      const data = await orcamentosAPI.getFiltros();
-      
-      // O endpoint de filtros já retorna uma lista distinta de nomes de categorias.
-      // Vamos garantir que o estado `opcoesFiltro.categorias` seja uma lista de strings.
-      // A busca extra por `categoriasAPI.list()` foi removida para simplificar e usar a fonte correta.
-      setOpcoesFiltro(prev => ({
-        ...prev,
-        ...data,
-        // Garante que `categorias` seja sempre um array de strings.
-        categorias: data.categorias || []
-      }));
-      // Inicializa o filtro de ano com o mais recente, se disponível
-      if (data.anos && data.anos.length > 0) {
-        setFiltros(prev => ({ ...prev, ano: data.anos[0] }));
-      }
-    } catch (error) {
-      console.error('Erro ao carregar filtros:', error);
-    }
-  }, []);
-  
 
-  const loadOrcamentos = useCallback(async () => {
+  const loadRequestIdRef = useRef(0);
+
+  const loadOrcamentos = useCallback(async (overrideFiltros = null) => {
+    const usedFiltros = overrideFiltros || filtros;
+    const reqId = ++loadRequestIdRef.current;
+    console.log(`Lancamentos[req:${reqId}]: carregando orçamentos com filtros:`, usedFiltros);
     setLoading(true);
-    try {      
-      // 1. Buscar todas as categorias que correspondem aos filtros (master, uf, categoria)
-      const categoriasResponse = await categoriasAPI.list({
-        master: filtros.master,
-        uf: filtros.uf,
-        categoria: filtros.categoria
-      });
-      const todasCategorias = Array.isArray(categoriasResponse) ? categoriasResponse : [];
+    try {
+      let orcamentosCompletos = [];
+      if (usedFiltros.status) {
+        orcamentosCompletos = await orcamentosAPI.list(usedFiltros);
+      } else {
+        const categoriasResponse = await categoriasAPI.list({
+          master: usedFiltros.master,
+          uf: usedFiltros.uf,
+          categoria: usedFiltros.categoria,
+        });
+        const todasCategorias = Array.isArray(categoriasResponse) ? categoriasResponse : [];
 
-      // 2. Buscar os orçamentos existentes para o ano/mês selecionado
-      const orcamentosResponse = await orcamentosAPI.list({
-        ano: filtros.ano,
-        mes: filtros.mes,
-        master: filtros.master,
-        uf: filtros.uf,
-        categoria: filtros.categoria
-      });
-      const orcamentosExistentes = Array.isArray(orcamentosResponse) ? orcamentosResponse : [];
-      const orcamentosMap = new Map(orcamentosExistentes.map(o => [o.id_categoria, o]));
+        const orcamentosResponse = await orcamentosAPI.list({
+          ano: usedFiltros.ano,
+          mes: usedFiltros.mes,
+          master: usedFiltros.master,
+          uf: usedFiltros.uf,
+          categoria: usedFiltros.categoria,
+          status: usedFiltros.status,
+        });
+        const orcamentosExistentes = Array.isArray(orcamentosResponse) ? orcamentosResponse : [];
+        const orcamentosMap = new Map(orcamentosExistentes.map(o => [o.id_categoria, o]));
 
-      // 3. Mesclar as duas listas
-      const orcamentosCompletos = todasCategorias.map(cat => {
-        const orcamentoExistente = orcamentosMap.get(cat.id_categoria);
-        return orcamentoExistente || {
-          id_categoria: cat.id_categoria,
-          categoria: cat,
-          mes: filtros.mes,
-          ano: filtros.ano,
-          orcado: 0,
-          realizado: 0,
-          dif: 0,
-          status: 'rascunho'
-        };
-      });
+        orcamentosCompletos = todasCategorias.map(cat => {
+          const orcamentoExistente = orcamentosMap.get(cat.id_categoria);
+          return orcamentoExistente || {
+            id_categoria: cat.id_categoria,
+            categoria: cat,
+            mes: usedFiltros.mes,
+            ano: usedFiltros.ano,
+            orcado: 0,
+            realizado: 0,
+            dif: 0,
+            status: 'rascunho'
+          };
+        });
+      }
+
+      // Se outra requisição começou depois dessa, descartar esta resposta
+      if (reqId !== loadRequestIdRef.current) {
+        console.log(`Lancamentos[req:${reqId}]: resposta descartada (req atual: ${loadRequestIdRef.current})`);
+        return;
+      }
 
       setOrcamentos(orcamentosCompletos);
+      console.log(`Lancamentos[req:${reqId}]: orçamentos carregados — total:`, orcamentosCompletos.length, 'filtros usados:', usedFiltros);
       setOriginalOrcamentos(JSON.parse(JSON.stringify(orcamentosCompletos)));
       setModifiedIds(new Set());
       setSelectedIds(new Set());
     } catch (error) {
       console.error('Erro ao carregar orçamentos:', error);
     } finally {
-      setLoading(false);
+      // Somente limpar loading se esta requisição for a última
+      if (reqId === loadRequestIdRef.current) setLoading(false);
     }
   }, [filtros]); // Dependência do objeto de filtros completo
+
+  // Log de todas as alterações em `filtros` para diagnóstico
+  useEffect(() => {
+    console.log('Lancamentos: filtros alterados ->', filtros);
+  }, [filtros]);
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
@@ -245,7 +279,8 @@ export default function Lancamentos() {
       ano: opcoesFiltro.anos?.includes(currentYear) ? currentYear : (opcoesFiltro.anos?.[0] || currentYear),
       master: '',
       uf: '',
-      categoria: ''
+      categoria: '',
+      status: '',
     });
   };
 
@@ -494,16 +529,18 @@ export default function Lancamentos() {
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-6 gap-4">
           <select name="ano" value={filtros.ano} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-            {(opcoesFiltro.anos && opcoesFiltro.anos.length > 0)
-              ? opcoesFiltro.anos.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)
-              : <option value={filtros.ano}>{filtros.ano}</option>
-            }
+            <option value="">Todos os Anos</option>
+            {opcoesFiltro.anos?.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)}
           </select>
           <select name="mes" value={filtros.mes} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
             <option value="">Todos os Meses</option>
             {opcoesFiltro.meses.map(m => <option key={`mes-${m.valor}`} value={m.valor}>{m.nome}</option>)}
+          </select>
+          <select name="status" value={filtros.status} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <option value="">Todos os Status</option>
+            {opcoesFiltro.status?.map(s => <option key={`status-${s}`} value={s}>{(s).replace(/_/g, ' ')}</option>)}
           </select>
           <select name="categoria" value={filtros.categoria} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
             <option value="">Todas as Categorias</option>            

@@ -16,10 +16,8 @@ export default function Rejeicoes() {
   }
 
   const handleNavigateToLancamentos = (filters) => {
-    // Armazenar filtros em sessionStorage temporariamente
-    sessionStorage.setItem('lancamentosFilters', JSON.stringify(filters));
-    // Navegar para Lançamentos
-    navigate('/lancamentos');
+    // Navegar para Lançamentos passando filtros via location.state
+    navigate('/lancamentos', { state: filters });
   };
 
   return (

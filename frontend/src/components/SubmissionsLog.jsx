@@ -23,11 +23,9 @@ export default function SubmissionsLog({ onNavigateToLancamentos }) {
   };
 
   const handleNavigate = (submission) => {
-    // Passar filtros ao componente pai (Lancamentos)
     const filters = {
-      masters: submission.masters,
-      ufs: submission.ufs,
-      categorias: submission.categorias,
+      status: 'aguardando_aprovacao',
+      ano: '',
     };
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);
