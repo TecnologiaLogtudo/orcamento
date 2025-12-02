@@ -42,8 +42,13 @@ export default function Dashboard() {
   const [comparativo, setComparativo] = useState(null);
   const [distribuicaoCategoria, setDistribuicaoCategoria] = useState(null);
   const [distribuicaoCentroDeCusto, setDistribuicaoCentroDeCusto] = useState(null);
-  const [filtros, setFiltros] = useState({
-    ano: new Date().getFullYear()
+  const [filtros, setFiltros] = useState(() => {
+    const savedFiltros = sessionStorage.getItem('dashboardFiltros');
+    return savedFiltros ? JSON.parse(savedFiltros) : { ano: new Date().getFullYear() };
+  });
+  const [tempFiltros, setTempFiltros] = useState(() => {
+    const savedFiltros = sessionStorage.getItem('dashboardFiltros');
+    return savedFiltros ? JSON.parse(savedFiltros) : { ano: new Date().getFullYear() };
   });
   const [filtrosDisponiveis, setFiltrosDisponiveis] = useState({
     anos: [],
@@ -60,6 +65,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Recarrega os dados do dashboard sempre que os filtros mudarem
     loadDashboard();
+    sessionStorage.setItem('dashboardFiltros', JSON.stringify(filtros));
   }, [filtros]); // Depende apenas dos filtros
 
   const loadFiltrosDisponiveis = async () => {
@@ -69,6 +75,10 @@ export default function Dashboard() {
       // Se não houver ano nos filtros disponíveis, use o ano atual
       if (data.anos && data.anos.length > 0 && !filtros.ano) {
         setFiltros(prev => ({
+          ...prev,
+          ano: data.anos[0]
+        }));
+        setTempFiltros(prev => ({
           ...prev,
           ano: data.anos[0]
         }));
@@ -101,16 +111,23 @@ export default function Dashboard() {
   };
 
   const handleFilterChange = (key, value) => {
-    setFiltros(prev => ({
+    setTempFiltros(prev => ({
       ...prev,
       [key]: value || undefined
     }));
   };
 
+  const handleApplyFilters = () => {
+    setFiltros(tempFiltros);
+  };
+
   const handleLimparFiltros = () => {
-    setFiltros({
+    const defaultFilters = {
       ano: filtrosDisponiveis.anos?.[0] || new Date().getFullYear()
-    });
+    };
+    setTempFiltros(defaultFilters);
+    setFiltros(defaultFilters);
+    sessionStorage.removeItem('dashboardFiltros');
   };
 
   const formatCurrency = (value) => {
@@ -287,7 +304,7 @@ export default function Dashboard() {
           {/* Filtros */}
           <div className="flex flex-wrap gap-2">
             <select
-              value={filtros.ano || ''}
+              value={tempFiltros.ano || ''}
               onChange={(e) => handleFilterChange('ano', e.target.value ? parseInt(e.target.value) : undefined)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
@@ -298,7 +315,7 @@ export default function Dashboard() {
             </select>
 
             <select
-              value={filtros.categoria || ''}
+              value={tempFiltros.categoria || ''}
               onChange={(e) => handleFilterChange('categoria', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
@@ -309,7 +326,7 @@ export default function Dashboard() {
             </select>
 
             <select
-              value={filtros.uf || ''}
+              value={tempFiltros.uf || ''}
               onChange={(e) => handleFilterChange('uf', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
@@ -320,7 +337,7 @@ export default function Dashboard() {
             </select>
 
             <select
-              value={filtros.centro_custo || ''}
+              value={tempFiltros.centro_custo || ''}
               onChange={(e) => handleFilterChange('centro_custo', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
@@ -330,7 +347,14 @@ export default function Dashboard() {
               ))}
             </select>
 
-            {(filtros.categoria || filtros.uf || filtros.centro_custo) && (
+            <button
+              onClick={handleApplyFilters}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+            >
+              Aplicar Filtros
+            </button>
+
+            {(tempFiltros.categoria || tempFiltros.uf || tempFiltros.centro_custo) && (
               <button
                 onClick={handleLimparFiltros}
                 className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
