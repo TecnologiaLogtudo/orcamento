@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api'; // Importar o objeto authAPI
-import { DollarSign } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
