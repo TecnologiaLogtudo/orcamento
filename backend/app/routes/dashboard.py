@@ -16,16 +16,20 @@ CACHE_DURATION = 1800  # 30 minutos em segundos
 def _get_filtros_from_db():
     """Busca filtros do banco de dados"""
     try:
-        anos_result = db.session.query(ResumoOrcamento.ano).distinct().order_by(ResumoOrcamento.ano.desc()).all()
+        # Anos: buscar de Orcamento (tabela primária de dados)
+        anos_result = db.session.query(Orcamento.ano).distinct().order_by(Orcamento.ano.desc()).all()
         anos = [int(row[0]) for row in anos_result if row[0] is not None]
         
-        ufs_result = db.session.query(ResumoOrcamento.uf).distinct().filter(ResumoOrcamento.uf != None).order_by(ResumoOrcamento.uf).all()
+        # UFs: buscar de Categoria (relacionada a Orcamento via id_categoria)
+        ufs_result = db.session.query(Categoria.uf).distinct().filter(Categoria.uf != None).order_by(Categoria.uf).all()
         ufs = [row[0] for row in ufs_result if row[0]]
         
-        centros_custo_result = db.session.query(ResumoOrcamento.master).distinct().filter(ResumoOrcamento.master != None).order_by(ResumoOrcamento.master).all()
+        # Centros de Custo (master): buscar de Categoria
+        centros_custo_result = db.session.query(Categoria.master).distinct().filter(Categoria.master != None).order_by(Categoria.master).all()
         centros_de_custo = [row[0] for row in centros_custo_result if row[0]]
         
-        categorias_result = db.session.query(ResumoOrcamento.categoria).distinct().filter(ResumoOrcamento.categoria != None).order_by(ResumoOrcamento.categoria).all()
+        # Categorias: buscar de Categoria
+        categorias_result = db.session.query(Categoria.categoria).distinct().filter(Categoria.categoria != None).order_by(Categoria.categoria).all()
         categorias = [row[0] for row in categorias_result if row[0]]
         
         return {

@@ -64,7 +64,7 @@ export default function Lancamentos() {
     ]
   });
 
-  useEffect(() => {
+useEffect(() => {
     const loadInitialData = async () => {
         const stateFilters = location?.state;
         if (stateFilters && !navAppliedRef.current) {
@@ -101,13 +101,23 @@ export default function Lancamentos() {
 
       try {
         const data = await orcamentosAPI.getFiltros();
+        const currentYear = new Date().getFullYear();
+        const startYear = 2026;
+        // Janela deslizante: sempre windowLength anos começando em max(startYear, currentYear)
+        const windowLength = 6; // exibe 6 anos consecutivos
+        const windowStart = Math.max(startYear, currentYear);
+        const futureYears = Array.from({ length: windowLength }, (_, i) => windowStart + i);
+        const years = Array.from(new Set([...(data.anos || []), ...futureYears])).sort((a, b) => b - a);
+
         setOpcoesFiltro(prev => ({
           ...prev,
           ...data,
+          anos: years,
           categorias: data.categorias || [],
         }));
-        if (!navAppliedRef.current && data.anos && data.anos.length > 0) {
-          setFiltros(prev => ({ ...prev, ano: data.anos[0] }));
+        if (!navAppliedRef.current && years.length > 0) {
+          const defaultYear = years.includes(windowStart) ? windowStart : years[0];
+          setFiltros(prev => ({ ...prev, ano: defaultYear }));
         }
       } catch (error) {
         console.error('Erro ao carregar filtros:', error);
@@ -531,7 +541,6 @@ export default function Lancamentos() {
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-6 gap-4">
           <select name="ano" value={filtros.ano} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-            <option value="">Todos os Anos</option>
             {opcoesFiltro.anos?.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)}
           </select>
           <select name="mes" value={filtros.mes} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
