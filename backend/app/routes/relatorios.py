@@ -314,7 +314,7 @@ def export_pdf():
         ])
         
         # Criar tabela
-        table = Table(data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 0.6*inch, 1*inch, 1*inch, 1*inch])
+        table = Table(data)
         
         # Estilo da tabela
         table.setStyle(TableStyle([

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { relatoriosAPI, categoriasAPI } from '../services/api';
+import { relatoriosAPI, dashboardAPI } from '../services/api';
 import { FileDown, FileSpreadsheet } from 'lucide-react';
 
 export default function Relatorios() {
@@ -14,7 +14,7 @@ export default function Relatorios() {
 
   const loadFiltros = async () => {
     try {
-      const data = await categoriasAPI.getFiltros();
+      const data = await dashboardAPI.getFiltros();
       setFiltrosDisponiveis(data);
     } catch (error) {
       console.error('Erro ao carregar filtros');
@@ -57,10 +57,11 @@ export default function Relatorios() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <select
             value={filtros.ano || ''}
-            onChange={(e) => setFiltros({...filtros, ano: e.target.value})}
+            onChange={(e) => setFiltros({...filtros, ano: e.target.value ? parseInt(e.target.value) : undefined})}
             className="px-4 py-2 border rounded-lg"
           >
-            {[2023, 2024, 2025, 2026].map(ano => (
+            <option value="">Todos os Anos</option>
+            {filtrosDisponiveis.anos?.map(ano => (
               <option key={ano} value={ano}>{ano}</option>
             ))}
           </select>
