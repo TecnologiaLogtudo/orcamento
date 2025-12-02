@@ -1,0 +1,27 @@
+# .htaccess
+# Configurações para o servidor Apache no King Host
+
+<IfModule mod_rewrite.c>
+    # Habilita o motor de reescrita de URL
+    RewriteEngine On
+
+    # Força o uso de HTTPS para maior segurança (Recomendado)
+    # Descomente as duas linhas abaixo se você tiver um certificado SSL ativo.
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Phusion Passenger (servidor do King Host) precisa de uma regra para saber
+    # que este diretório é uma aplicação Python.
+    # Esta diretiva habilita o Passenger para a aplicação.
+    PassengerEnabled On
+
+    # Define a raiz da aplicação. O caminho deve ser absoluto no servidor.
+    # Substitua 'orcamento' se o nome da aplicação no painel King Host for diferente.
+    PassengerAppRoot /home/logtudo/public_html/orcamento
+
+    # Define o arquivo de startup do Python.
+    # Por padrão, o Passenger procura por 'passenger_wsgi.py' ou 'app.py'.
+    # Especificar explicitamente garante que o arquivo correto seja usado.
+    PassengerPython /home/logtudo/public_html/orcamento/passenger_wsgi.py
+
+</IfModule>

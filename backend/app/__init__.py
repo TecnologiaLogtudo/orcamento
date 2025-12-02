@@ -19,7 +19,13 @@ def create_app(config_name='default'):
     
     # Inicializar extensões
     db.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173"]}}, supports_credentials=True)
+    CORS(app, resources={r"/api/*": {"origins": [
+        "http://localhost:5173", 
+        "https://logtudo.com.br", 
+        "https://www.logtudo.com.br",
+        "http://logtudo.com.br",
+        "http://www.logtudo.com.br"
+    ]}}, supports_credentials=True)
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader
