@@ -1,4 +1,4 @@
-#config.py
+# backend/app/config.py
 import os
 from datetime import timedelta
 
@@ -16,6 +16,8 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
+        'pool_size': 20,  # Aumentar tamanho do pool em produção
+        'max_overflow': 10,  # Permitir conexões extras quando necessário
     }
 
     # Segurança
@@ -52,6 +54,44 @@ class ProductionConfig(Config):
         if not key:
             raise ValueError("SECRET_KEY não configurada em produção!")
         return key
+
+    @property
+    def MYSQL_HOST(self):
+        host = os.environ.get('MYSQL_HOST')
+        if not host:
+            raise ValueError("MYSQL_HOST não configurada em produção!")
+        return host
+
+    @property
+    def MYSQL_USER(self):
+        user = os.environ.get('MYSQL_USER')
+        if not user:
+            raise ValueError("MYSQL_USER não configurada em produção!")
+        return user
+
+    @property
+    def MYSQL_PASSWORD(self):
+        password = os.environ.get('MYSQL_PASSWORD')
+        if not password:
+            raise ValueError("MYSQL_PASSWORD não configurada em produção!")
+        return password
+
+    @property
+    def MYSQL_DB(self):
+        db = os.environ.get('MYSQL_DB')
+        if not db:
+            raise ValueError("MYSQL_DB não configurada em produção!")
+        return db
+
+    # Configurações específicas de produção
+    CORS_ORIGINS = ["https://logtudo.com.br"]
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 20,
+        'max_overflow': 10,
+        'pool_timeout': 30,  # Timeout ao obter conexão
+    }
 
 config = {
     'development': DevelopmentConfig,

@@ -1,6 +1,7 @@
+# backend/app/models.py
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import event, text, TypeDecorator
+from sqlalchemy import event, text, TypeDecorator, Index
 from sqlalchemy.orm import attributes
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
@@ -74,6 +75,8 @@ class Categoria(db.Model):
     
     __table_args__ = (
         db.UniqueConstraint('categoria', 'grupo', 'cod_class', name='unique_categoria'),
+        Index('idx_categoria_grupo', 'grupo'),  # Índice para consultas por grupo
+        Index('idx_categoria_master', 'master'),  # Índice para consultas por master
     )
     
     def to_dict(self):
@@ -120,6 +123,9 @@ class Orcamento(db.Model):
     
     __table_args__ = (
         db.UniqueConstraint('id_categoria', 'mes', 'ano', name='unique_orcamento'),
+        Index('idx_orcamento_categoria', 'id_categoria'),  # Índice para consultas por categoria
+        Index('idx_orcamento_status', 'status'),  # Índice para consultas por status
+        Index('idx_orcamento_data', 'ano', 'mes'),  # Índice para consultas por data
     )
     
     def to_dict(self, include_categoria=False):
@@ -157,6 +163,11 @@ class Log(db.Model):
     
     # Relacionamentos
     usuario = db.relationship('Usuario', back_populates='logs')
+    
+    __table_args__ = (
+        Index('idx_log_usuario', 'id_usuario'),  # Índice para consultas por usuário
+        Index('idx_log_timestamp', 'timestamp'),  # Índice para consultas por timestamp
+    )
     
     def to_dict(self):
         """Converte para dicionário"""
@@ -219,6 +230,6 @@ class TokenBlacklist(db.Model):
 @event.listens_for(Orcamento, 'before_update')
 def calculate_dif(mapper, connection, target):
     if target.realizado is not None and target.orcado is not None:
-        target.dif = target.realizado - target.orcado
+        target.dif = target.orcado - target.realizado
     else:
         target.dif = 0

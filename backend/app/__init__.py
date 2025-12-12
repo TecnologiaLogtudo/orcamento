@@ -1,4 +1,4 @@
-#app/__init__.py
+# backend/app/__init__.py
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -6,6 +6,7 @@ from app.models import db
 from app.config import config
 from dotenv import load_dotenv
 import os
+import logging
 
 load_dotenv()
 
@@ -17,15 +18,26 @@ def create_app(config_name='default'):
     # Carregar configurações
     app.config.from_object(config[config_name])
     
+    # Configurar logging
+    if not app.debug and not app.testing:
+        app.logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter(
+            '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+        ))
+        app.logger.addHandler(handler)
+        app.logger.info("Iniciando aplicação em modo de produção")
+    
     # Inicializar extensões
     db.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": [
-        "http://localhost:5173", 
-        "https://logtudo.com.br", 
-        "https://www.logtudo.com.br",
-        "http://logtudo.com.br",
-        "http://www.logtudo.com.br"
-    ]}}, supports_credentials=True)
+    
+    # Obter origens CORS do config
+    cors_origins = app.config.get('CORS_ORIGINS', [])
+    if config_name == 'production' and not cors_origins:
+        # Configuração padrão para produção caso não seja especificada
+        cors_origins = ["https://logtudo.com.br", "https://www.logtudo.com.br"]
+    
+    CORS(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=True)
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader
@@ -49,28 +61,20 @@ def create_app(config_name='default'):
     app.register_blueprint(relatorios.bp, url_prefix='/api')
     app.register_blueprint(logs.bp, url_prefix='/api')
 
-    # Configuração do JWT
-    @jwt.token_in_blocklist_loader
-    def check_if_token_revoked(_, payload):
-        from app.models import TokenBlacklist
-        jti = payload['jti']
-        token = TokenBlacklist.query.filter_by(jti=jti).first()
-        return token is not None
-
     # Handlers de erro JWT
     @jwt.expired_token_loader
     def expired_token_loader(jwt_header, jwt_payload):
-        print(f"Token expirado: payload={jwt_payload}")
+        app.logger.warning("Token expirado")
         return {'error': 'Token de autenticação expirado'}, 401
 
     @jwt.invalid_token_loader
     def invalid_token_loader(error):
-        print(f"Token inválido: error={error}")
+        app.logger.warning("Token inválido")
         return {'error': 'Token de autenticação inválido'}, 401
 
     @jwt.unauthorized_loader
     def unauthorized_callback(error):
-        print(f"Sem token: error={error}")
+        app.logger.warning("Token não fornecido")
         return {'error': 'Token de autenticação não fornecido'}, 401
 
     # Rota de health check
@@ -78,6 +82,8 @@ def create_app(config_name='default'):
     def health():
         return {'status': 'ok', 'message': 'API funcionando'}
 
-    print("JWT SECRET ATIVO:", app.config.get('JWT_SECRET_KEY'))
+    # Remover print statements em produção
+    if app.debug:
+        print("JWT SECRET ATIVO:", app.config.get('JWT_SECRET_KEY'))
 
     return app

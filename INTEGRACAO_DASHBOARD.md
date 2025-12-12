@@ -156,7 +156,7 @@ Visualizações:
 |-------|-----------|
 | **Total Orçado** | Soma do orçado de todos os lançamentos aprovados |
 | **Total Realizado** | Soma do realizado de todos os lançamentos aprovados |
-| **Desvio Total** | Diferença (Realizado - Orçado) |
+| **Desvio Total** | Diferença (Orçado - Realizado) |
 | **% Execução** | (Realizado / Orçado) * 100 |
 | **Dados Mensais** | Breakout para cada um dos 12 meses |
 | **Mês Crítico** | Mês com maior desvio |

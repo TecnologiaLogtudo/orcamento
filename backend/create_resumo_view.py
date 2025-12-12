@@ -15,9 +15,9 @@ def create_resumo_view():
         try:
             # Remover tabela existente se for tabela
             print("Verificando e removendo tabela antiga...")
-            db.session.execute(text("DROP TABLE IF EXISTS resumo_orcamento"))
+            db.session.execute(text("DROP VIEW IF EXISTS resumo_orcamento"))
             db.session.commit()
-            print("✓ Tabela removida")
+            print("Tabela removida")
             
             # Criar view
             print("Criando view...")
@@ -52,10 +52,10 @@ def create_resumo_view():
             """
             db.session.execute(text(sql))
             db.session.commit()
-            print("✓ View criada com sucesso!")            # Verificar quantos registros foram agregados
+            print("View criada com sucesso!")            # Verificar quantos registros foram agregados
             result = db.session.execute(text("SELECT COUNT(*) FROM resumo_orcamento"))
             count = result.scalar()
-            print(f"✓ Total de registros na view: {count}")
+            print(f"Total de registros na view: {count}")
             
             # Amostra de dados
             sample = db.session.execute(text("""
@@ -68,7 +68,7 @@ def create_resumo_view():
                 print(f"  {row[0]}: {row[1]}/{row[2]} - Orcado: {row[3]}, Realizado: {row[4]}, Dif: {row[5]}")
             
         except Exception as e:
-            print(f"✗ Erro ao criar view: {e}")
+            print(f"Erro ao criar view: {e}")
             db.session.rollback()
             raise
 

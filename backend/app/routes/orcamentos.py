@@ -338,12 +338,13 @@ def get_orcamento_filtros():
 @bp.route('/orcamentos/batch', methods=['POST'])
 @jwt_required()
 def batch_update_orcamentos():
-    """Atualiza múltiplos orçamentos de uma vez"""
+    """Atualiza múltiplos orçamentos de uma vez, com permissões granulares."""
     try:
         user_id = get_jwt_identity()
         current_user = Usuario.query.get(user_id)
         
-        if current_user.papel != 'admin':
+        # Permitir acesso para admin e gestor
+        if current_user.papel not in ['admin', 'gestor']:
             return jsonify({'error': 'Acesso negado'}), 403
         
         data = request.get_json()
@@ -358,18 +359,14 @@ def batch_update_orcamentos():
         
         for orc_data in data['orcamentos']:
             try:
-                # Validar dados mínimos
+                # Validar dados mínimos para busca ou criação
                 if 'id_categoria' not in orc_data or 'mes' not in orc_data or 'ano' not in orc_data:
-                    errors.append(f'Dados incompletos: {orc_data}')
+                    errors.append(f'Dados incompletos para um orçamento: {orc_data}')
                     continue
                 
                 # Garante que o mês seja o nome, não o número
                 mes_valor = orc_data['mes']
-                if isinstance(mes_valor, int) and 1 <= mes_valor <= 12:
-                    mes_nome = MESES[mes_valor - 1]
-                else:
-                    mes_nome = mes_valor
-
+                mes_nome = MESES[mes_valor - 1] if isinstance(mes_valor, int) and 1 <= mes_valor <= 12 else mes_valor
 
                 # Buscar ou criar
                 orcamento = Orcamento.query.filter_by(
@@ -378,41 +375,56 @@ def batch_update_orcamentos():
                     ano=orc_data['ano']
                 ).first()
                 
-                if orcamento:
+                if orcamento: # Orçamento existente
                     if orcamento.status == 'aprovado':
-                        errors.append(f'Orçamento para categoria {orc_data["id_categoria"]} no mês {mes_nome} está aprovado e não pode ser editado.')
-                        continue
+                        if 'realizado' in orc_data:
+                            orcamento.realizado = orc_data['realizado']
+                            orcamento.atualizado_por = user_id
+                            updated += 1
+                        # Outras alterações em orçamentos aprovados são ignoradas
+                    elif current_user.papel == 'admin': # Não aprovado, apenas admin pode editar
+                        orcamento.atualizado_por = user_id
+                        if 'orcado' in orc_data:
+                            orcamento.orcado = orc_data['orcado']
+                        if 'realizado' in orc_data:
+                            orcamento.realizado = orc_data['realizado']
+                        if 'status' in orc_data and orc_data['status']:
+                            orcamento.status = orc_data['status']
+                        updated += 1
+                    else:
+                        errors.append(f'Apenas administradores podem editar orçamentos com status "{orcamento.status}".')
 
-                    orcamento.atualizado_por = user_id
-                    updated += 1
-                else:
-                    orcamento = Orcamento(
-                        id_categoria=orc_data['id_categoria'],
-                        mes=mes_nome,
-                        ano=orc_data['ano'],
-                        criado_por=user_id,
-                        status='rascunho' # Default status
-                    )
-                    db.session.add(orcamento)
-                    created += 1
-                
-                if 'orcado' in orc_data:
-                    orcamento.orcado = orc_data['orcado']
-                if 'realizado' in orc_data:
-                    orcamento.realizado = orc_data['realizado']
-                if 'status' in orc_data and orc_data['status']:
-                    orcamento.status = orc_data['status']
-                
+                else: # Novo orçamento
+                    if current_user.papel == 'admin':
+                        orcamento = Orcamento(
+                            id_categoria=orc_data['id_categoria'],
+                            mes=mes_nome,
+                            ano=orc_data['ano'],
+                            criado_por=user_id,
+                            status='rascunho'
+                        )
+                        db.session.add(orcamento)
+                        if 'orcado' in orc_data:
+                            orcamento.orcado = orc_data['orcado']
+                        if 'realizado' in orc_data:
+                            orcamento.realizado = orc_data['realizado']
+                        created += 1
+                    else:
+                        errors.append('Apenas administradores podem criar novos orçamentos.')
+
             except Exception as e:
-                errors.append(f'Erro em {orc_data}: {str(e)}')
-        
-        db.session.flush() # Garante que os IDs sejam gerados para novos orçamentos
+                errors.append(f'Erro processando {orc_data.get("id_categoria", "N/A")}: {str(e)}')
+
+        db.session.flush()
         for orc_data in data['orcamentos']:
-            mes_nome = MESES[orc_data['mes'] - 1] if isinstance(orc_data['mes'], int) else orc_data['mes']
-            orc = Orcamento.query.filter_by(id_categoria=orc_data['id_categoria'], mes=mes_nome, ano=orc_data['ano']).first()
-            if orc:
-                processed_orcamentos.append({'id_orcamento': orc.id_orcamento})
-        
+            try:
+                mes_nome = MESES[orc_data['mes'] - 1] if isinstance(orc_data['mes'], int) else orc_data['mes']
+                orc = Orcamento.query.filter_by(id_categoria=orc_data['id_categoria'], mes=mes_nome, ano=orc_data['ano']).first()
+                if orc:
+                    processed_orcamentos.append({'id_orcamento': orc.id_orcamento})
+            except (KeyError, TypeError): # Lida com orc_data malformado que já foi logado
+                pass
+
         db.session.commit()
         
         # Registrar no log
@@ -421,11 +433,7 @@ def batch_update_orcamentos():
             acao=f'Atualização em lote: {created} criados, {updated} atualizados',
             tabela_afetada='orcamentos',
             id_registro=None,
-            detalhes={
-                'criados': created,
-                'atualizados': updated,
-                'erros': len(errors)
-            }
+            detalhes={'criados': created, 'atualizados': updated, 'erros': errors}
         )
         db.session.add(log)
         db.session.commit()

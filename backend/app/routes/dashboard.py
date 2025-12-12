@@ -137,21 +137,49 @@ def get_dashboard():
                 'dif': float(item.dif) if item and item.dif else 0.0
             })
         
-        # Mês mais crítico (maior desvio)
-        mes_critico = None
-        maior_desvio = 0
+        # Mês crítico
+        # 1. O mês com a maior diferença positiva (orçado - realizado).
+        # 2. Se não houver mês com diferença positiva, o mês com a menor diferença negativa (mais próximo de zero).
+        meses_criticos = []
         
-        for item in dados_por_mes:
-            if abs(item['dif']) > abs(maior_desvio):
-                maior_desvio = item['dif']
-                mes_critico = {
-                    'mes': item['mes'],
-                    'desvio': item['dif']
-                }
+        # Filtrar meses com dados para evitar processar meses vazios
+        meses_com_dados = [m for m in dados_por_mes if m['orcado'] > 0 or m['realizado'] > 0]
+
+        if meses_com_dados:
+            meses_positivos = [m for m in meses_com_dados if m['dif'] > 0]
+
+            if meses_positivos:
+                # Caso 1: Encontrar a maior diferença positiva
+                maior_dif_positiva = max(mes['dif'] for mes in meses_positivos)
+                
+                # Encontrar todos os meses que têm essa maior diferença
+                meses_criticos = [{
+                    'mes': mes['mes'],
+                    'orcado': mes['orcado'],
+                    'realizado': mes['realizado'],
+                    'desvio': mes['dif'],
+                    'percentual': ((mes['realizado'] / mes['orcado'] * 100) - 100) if mes['orcado'] and mes['orcado'] > 0 else 0.0
+                } for mes in meses_positivos if mes['dif'] == maior_dif_positiva]
+            
+            else:
+                # Caso 2: Nenhum mês com dif positiva, encontrar o mais próximo de zero (maior valor negativo/zero)
+                if meses_com_dados: # Garante que não está vazio
+                    mais_proximo_de_zero = max(mes['dif'] for mes in meses_com_dados)
+                    
+                    # Encontrar todos os meses que têm essa diferença
+                    meses_criticos = [{
+                        'mes': mes['mes'],
+                        'orcado': mes['orcado'],
+                        'realizado': mes['realizado'],
+                        'desvio': mes['dif'],
+                        'percentual': ((mes['realizado'] / mes['orcado'] * 100) - 100) if mes['orcado'] and mes['orcado'] > 0 else 0.0
+                    } for mes in meses_com_dados if mes['dif'] == mais_proximo_de_zero]
         
         # Top 5 centros de custo por desvio
         query_centros_custo = db.session.query(
             ResumoOrcamento.master,
+            func.sum(ResumoOrcamento.total_orcado).label('orcado_total'),
+            func.sum(ResumoOrcamento.total_realizado).label('realizado_total'),
             func.sum(ResumoOrcamento.total_dif).label('dif_total')
         )
         
@@ -170,7 +198,10 @@ def get_dashboard():
         centros_custo_criticos = [
             {
                 'centro_custo': g.master,
-                'desvio': float(g.dif_total) if g.dif_total else 0.0
+                'orcado': float(g.orcado_total) if g.orcado_total else 0.0,
+                'realizado': float(g.realizado_total) if g.realizado_total else 0.0,
+                'desvio': float(g.dif_total) if g.dif_total else 0.0,
+                'percentual': ((g.realizado_total / g.orcado_total * 100) - 100) if g.orcado_total and g.orcado_total > 0 else 0.0
             }
             for g in top_centros_custo
         ]
@@ -205,7 +236,7 @@ def get_dashboard():
         return jsonify({
             'totais': totais,
             'dados_mensais': dados_por_mes,
-            'mes_critico': mes_critico,
+            'mes_critico': meses_criticos,
             'centros_custo_criticos': centros_custo_criticos,
             'centros_custo': centros_custo
         }), 200

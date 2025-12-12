@@ -310,10 +310,10 @@ useEffect(() => {
         const realizado = updatedOrc.realizado || 0;
         updatedOrc.dif = orcado - realizado;
 
-        setModifiedIds(prevIds => new Set(prevIds).add(uniqueId));
         return updatedOrc;
       })
     );
+    setModifiedIds(prevIds => new Set(prevIds).add(uniqueId));
   };
 
   const handleSendForApproval = async () => {
@@ -341,7 +341,7 @@ useEffect(() => {
         };
       });
 
-      const savedResult = await orcamentosAPI.batchUpdate(orcamentosPayload);
+      const savedResult = await orcamentosAPI.batchUpdate({ orcamentos: orcamentosPayload });
       
       // Passo 2: Submeter os orçamentos salvos/atualizados para aprovação
       // O backend retorna os IDs dos orçamentos criados/atualizados
@@ -389,6 +389,41 @@ useEffect(() => {
       loadOrcamentos();
     } catch (error) {
         showNotification('error', 'Erro ao salvar alterações: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveRealizado = async () => {
+    const modifiedOrcamentos = orcamentos.filter(orc => {
+      const uniqueId = orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`;
+      // Only approved items that are within the edit window and have been modified
+      return modifiedIds.has(uniqueId) && orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano);
+    });
+
+    if (modifiedOrcamentos.length === 0) {
+      showNotification('info', 'Nenhum valor realizado modificado para salvar.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const orcamentosPayload = modifiedOrcamentos.map(orc => {
+        const { categoria, ...rest } = orc;
+        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        return {
+          ...rest,
+          mes: mesObj ? mesObj.nome : rest.mes,
+          id_orcamento: rest.id_orcamento // It must have an ID as it is approved
+        };
+      });
+
+      await orcamentosAPI.batchUpdate(orcamentosPayload);
+      
+      showNotification('success', `${modifiedOrcamentos.length} orçamento(s) atualizados com sucesso!`);
+      loadOrcamentos(); // Reload to show fresh data
+    } catch (error) {
+        showNotification('error', 'Erro ao salvar valores realizados: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
     }
@@ -596,6 +631,25 @@ useEffect(() => {
                 <Save size={20} />
               )}
               Salvar Alterações (Reprovados)
+            </button>
+          </div>
+        )}
+        {canEdit() && modifiedIds.size > 0 && orcamentos.some(o => {
+          const uniqueId = o.id_orcamento || `${o.id_categoria}-${o.mes}-${o.ano}`;
+          return modifiedIds.has(uniqueId) && o.status === 'aprovado' && isWithinRealizadoEditWindow(o.mes, o.ano);
+        }) && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleSaveRealizado}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Save size={20} />
+              )}
+              Salvar Realizado
             </button>
           </div>
         )}

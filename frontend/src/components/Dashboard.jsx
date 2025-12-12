@@ -142,6 +142,10 @@ export default function Dashboard() {
   };
 
   // Dados para gráfico de linha (Orçado vs Realizado)
+  const realizadoValues = dashboardData?.dados_mensais?.map(d => d.realizado) || [];
+  const averageRealizado = realizadoValues.length > 0 ? realizadoValues.reduce((sum, val) => sum + val, 0) / realizadoValues.length : 0;
+  const averageLineData = new Array(realizadoValues.length).fill(averageRealizado);
+
   const lineChartData = dashboardData?.dados_mensais ? {
     labels: dashboardData.dados_mensais.map(d => d.mes.substring(0, 3)),
     datasets: [
@@ -154,10 +158,19 @@ export default function Dashboard() {
       },
       {
         label: 'Realizado',
-        data: dashboardData.dados_mensais.map(d => d.realizado),
+        data: realizadoValues,
         borderColor: 'rgb(16, 185, 129)',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         tension: 0.4
+      },
+      {
+        label: 'Média Realizado',
+        data: averageLineData,
+        borderColor: 'rgb(249, 115, 22)',
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0,
+        pointRadius: 0,
       }
     ]
   } : null;
@@ -463,22 +476,44 @@ export default function Dashboard() {
       {/* Mês Crítico e Grupos Críticos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Mês Crítico */}
-        {dashboardData?.mes_critico && (
+        {dashboardData?.mes_critico && dashboardData.mes_critico.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center gap-2 mb-4">
               <AlertCircle className="w-5 h-5 text-orange-500" />
-              <h2 className="text-lg font-semibold text-gray-900">Mês Crítico</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {dashboardData.mes_critico.length > 1 ? 'Meses Críticos' : 'Mês Crítico'}
+              </h2>
             </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-1">Maior Desvio</p>
-              <p className="text-xl font-bold text-gray-900">
-                {dashboardData.mes_critico.mes}
-              </p>
-              <p className={`text-lg font-semibold mt-2 ${
-                dashboardData.mes_critico.desvio >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {formatCurrency(dashboardData.mes_critico.desvio)}
-              </p>
+            <div className="space-y-4">
+              {dashboardData.mes_critico.map((critico, index) => (
+                <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">
+                        {critico.desvio > 0 ? 'Mês de maior economia' : 'Mês com gasto mais próximo do orçado'}
+                      </p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {critico.mes}
+                      </p>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <p className={`text-lg font-semibold ${
+                        critico.desvio >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(critico.desvio)}
+                      </p>
+                      <span className={`text-sm font-semibold ${ critico.percentual >= 0 ? 'text-red-500' : 'text-green-500' }`}>
+                        ({(parseFloat(critico.percentual) || 0).toFixed(2)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-200">
+                    <span>Orçado: {formatCurrency(critico.orcado)}</span>
+                    <span className="mx-2">|</span>
+                    <span>Realizado: {formatCurrency(critico.realizado)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -490,13 +525,25 @@ export default function Dashboard() {
           </h2>
           <div className="space-y-3">
             {dashboardData?.centros_custo_criticos?.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium text-gray-900">{item.centro_custo}</span>
-                <span className={`font-semibold ${
-                  item.desvio >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatCurrency(item.desvio)}
-                </span>
+              <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{item.centro_custo}</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`font-semibold ${
+                      item.desvio >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(item.desvio)}
+                    </span>
+                    <span className={`text-sm font-semibold ${ item.percentual >= 0 ? 'text-red-500' : 'text-green-500' }`}>
+                      ({(parseFloat(item.percentual) || 0).toFixed(2)}%)
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  <span>Orçado: {formatCurrency(item.orcado)}</span>
+                  <span className="mx-2">|</span>
+                  <span>Realizado: {formatCurrency(item.realizado)}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -553,7 +600,7 @@ export default function Dashboard() {
                   comparativo.variacoes.total_orcado_pct >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   <p className="text-sm font-semibold">
-                    {comparativo.variacoes.total_orcado_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_orcado_pct.toFixed(2)}%
+                    {comparativo.variacoes.total_orcado_pct >= 0 ? '+' : ''}{(parseFloat(comparativo.variacoes.total_orcado_pct) || 0).toFixed(2)}%
                   </p>
                 </div>
               </div>
@@ -579,7 +626,7 @@ export default function Dashboard() {
                   comparativo.variacoes.total_realizado_pct >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   <p className="text-sm font-semibold">
-                    {comparativo.variacoes.total_realizado_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_realizado_pct.toFixed(2)}%
+                    {comparativo.variacoes.total_realizado_pct >= 0 ? '+' : ''}{(parseFloat(comparativo.variacoes.total_realizado_pct) || 0).toFixed(2)}%
                   </p>
                 </div>
               </div>
@@ -609,7 +656,7 @@ export default function Dashboard() {
                   comparativo.variacoes.total_dif_pct >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   <p className="text-sm font-semibold">
-                    {comparativo.variacoes.total_dif_pct >= 0 ? '+' : ''}{comparativo.variacoes.total_dif_pct.toFixed(2)}%
+                    {comparativo.variacoes.total_dif_pct >= 0 ? '+' : ''}{(parseFloat(comparativo.variacoes.total_dif_pct) || 0).toFixed(2)}%
                   </p>
                 </div>
               </div>
