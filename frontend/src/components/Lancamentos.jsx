@@ -590,7 +590,7 @@ useEffect(() => {
             {opcoesFiltro.anos?.map(y => <option key={`ano-${y}`} value={y}>{y}</option>)}
           </select>
           <select name="mes" value={filtros.mes} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-            <option value="">Todos os Meses</option>
+            { !canEdit() && <option value="">Todos os Meses</option> }
             {opcoesFiltro.meses.map(m => <option key={`mes-${m.valor}`} value={m.valor}>{m.nome}</option>)}
           </select>
           <select name="status" value={filtros.status} onChange={handleFiltroChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">

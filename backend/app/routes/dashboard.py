@@ -72,22 +72,22 @@ def get_dashboard():
         uf = request.args.get('uf')
         centro_custo = request.args.get('centro_custo')
         
-        # Query base
+        # Query base para totais, agora direto nas tabelas Orcamento e Categoria
         query = db.session.query(
-            func.sum(ResumoOrcamento.total_orcado).label('total_orcado'),
-            func.sum(ResumoOrcamento.total_realizado).label('total_realizado'),
-            func.sum(ResumoOrcamento.total_dif).label('total_dif')
-        )
-        
+            func.sum(Orcamento.orcado).label('total_orcado'),
+            func.sum(Orcamento.realizado).label('total_realizado'),
+            func.sum(Orcamento.dif).label('total_dif')
+        ).join(Categoria, Categoria.id_categoria == Orcamento.id_categoria).filter(Orcamento.status == 'aprovado')
+
         # Aplicar filtros
         if ano:
-            query = query.filter(ResumoOrcamento.ano == ano)
+            query = query.filter(Orcamento.ano == ano)
         if categoria:
-            query = query.filter(ResumoOrcamento.categoria == categoria)
+            query = query.filter(Categoria.categoria == categoria)
         if uf:
-            query = query.filter(ResumoOrcamento.uf == uf)
+            query = query.filter(Categoria.uf == uf)
         if centro_custo:
-            query = query.filter(ResumoOrcamento.master == centro_custo)
+            query = query.filter(Categoria.master == centro_custo)
         
         result = query.first()
         
@@ -104,25 +104,25 @@ def get_dashboard():
         else:
             totais['percentual_execucao'] = 0.0
         
-        # Dados por mês
+        # Dados por mês, agora direto nas tabelas Orcamento e Categoria
         query_mensal = db.session.query(
-            ResumoOrcamento.mes,
-            func.sum(ResumoOrcamento.total_orcado).label('orcado'),
-            func.sum(ResumoOrcamento.total_realizado).label('realizado'),
-            func.sum(ResumoOrcamento.total_dif).label('dif')
-        )
+            Orcamento.mes,
+            func.sum(Orcamento.orcado).label('orcado'),
+            func.sum(Orcamento.realizado).label('realizado'),
+            func.sum(Orcamento.dif).label('dif')
+        ).join(Categoria, Categoria.id_categoria == Orcamento.id_categoria).filter(Orcamento.status == 'aprovado')
         
         # Aplicar mesmos filtros
         if ano:
-            query_mensal = query_mensal.filter(ResumoOrcamento.ano == ano)
+            query_mensal = query_mensal.filter(Orcamento.ano == ano)
         if categoria:
-            query_mensal = query_mensal.filter(ResumoOrcamento.categoria == categoria)
+            query_mensal = query_mensal.filter(Categoria.categoria == categoria)
         if uf:
-            query_mensal = query_mensal.filter(ResumoOrcamento.uf == uf)
+            query_mensal = query_mensal.filter(Categoria.uf == uf)
         if centro_custo:
-            query_mensal = query_mensal.filter(ResumoOrcamento.master == centro_custo)
+            query_mensal = query_mensal.filter(Categoria.master == centro_custo)
         
-        dados_mensais = query_mensal.group_by(ResumoOrcamento.mes).all()
+        dados_mensais = query_mensal.group_by(Orcamento.mes).all()
         
         meses_ordenados = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -177,21 +177,21 @@ def get_dashboard():
         
         # Top 5 centros de custo por desvio
         query_centros_custo = db.session.query(
-            ResumoOrcamento.master,
-            func.sum(ResumoOrcamento.total_orcado).label('orcado_total'),
-            func.sum(ResumoOrcamento.total_realizado).label('realizado_total'),
-            func.sum(ResumoOrcamento.total_dif).label('dif_total')
-        )
-        
+            Categoria.master,
+            func.sum(Orcamento.orcado).label('orcado_total'),
+            func.sum(Orcamento.realizado).label('realizado_total'),
+            func.sum(Orcamento.dif).label('dif_total')
+        ).join(Categoria, Categoria.id_categoria == Orcamento.id_categoria).filter(Orcamento.status == 'aprovado')
+
         if ano:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.ano == ano)
+            query_centros_custo = query_centros_custo.filter(Orcamento.ano == ano)
         if categoria:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.categoria == categoria)
+            query_centros_custo = query_centros_custo.filter(Categoria.categoria == categoria)
         if uf:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.uf == uf)
+            query_centros_custo = query_centros_custo.filter(Categoria.uf == uf)
         
-        top_centros_custo = query_centros_custo.group_by(ResumoOrcamento.master)\
-                                 .order_by(func.abs(func.sum(ResumoOrcamento.total_dif)).desc())\
+        top_centros_custo = query_centros_custo.group_by(Categoria.master)\
+                                 .order_by(func.abs(func.sum(Orcamento.dif)).desc())\
                                  .limit(5)\
                                  .all()
         
@@ -206,31 +206,31 @@ def get_dashboard():
             for g in top_centros_custo
         ]
         
-        # Dados por centro de custo (categoria)
-        query_centros_custo = db.session.query(
-            ResumoOrcamento.categoria,
-            func.sum(ResumoOrcamento.total_orcado).label('orcado'),
-            func.sum(ResumoOrcamento.total_realizado).label('realizado'),
-            func.sum(ResumoOrcamento.total_dif).label('dif')
-        )
+        # Dados por categoria
+        query_categoria = db.session.query(
+            Categoria.categoria,
+            func.sum(Orcamento.orcado).label('orcado'),
+            func.sum(Orcamento.realizado).label('realizado'),
+            func.sum(Orcamento.dif).label('dif')
+        ).join(Categoria, Categoria.id_categoria == Orcamento.id_categoria).filter(Orcamento.status == 'aprovado')
         
         if ano:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.ano == ano)
+            query_categoria = query_categoria.filter(Orcamento.ano == ano)
         if uf:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.uf == uf)
+            query_categoria = query_categoria.filter(Categoria.uf == uf)
         if centro_custo:
-            query_centros_custo = query_centros_custo.filter(ResumoOrcamento.master == centro_custo)
+            query_categoria = query_categoria.filter(Categoria.master == centro_custo)
         
-        dados_por_categoria = query_centros_custo.group_by(ResumoOrcamento.categoria).all()
+        dados_por_categoria_result = query_categoria.group_by(Categoria.categoria).all()
         
-        centros_custo = [
+        dados_categoria = [
             {
                 'categoria': d.categoria,
                 'orcado': float(d.orcado) if d.orcado else 0.0,
                 'realizado': float(d.realizado) if d.realizado else 0.0,
                 'dif': float(d.dif) if d.dif else 0.0
             }
-            for d in dados_por_categoria
+            for d in dados_por_categoria_result
         ]
         
         return jsonify({
@@ -238,7 +238,7 @@ def get_dashboard():
             'dados_mensais': dados_por_mes,
             'mes_critico': meses_criticos,
             'centros_custo_criticos': centros_custo_criticos,
-            'centros_custo': centros_custo
+            'centros_custo': dados_categoria
         }), 200
         
     except Exception as e:

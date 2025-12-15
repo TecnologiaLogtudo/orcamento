@@ -142,16 +142,24 @@ export default function Dashboard() {
   };
 
   // Dados para gráfico de linha (Orçado vs Realizado)
-  const realizadoValues = dashboardData?.dados_mensais?.map(d => d.realizado) || [];
-  const averageRealizado = realizadoValues.length > 0 ? realizadoValues.reduce((sum, val) => sum + val, 0) / realizadoValues.length : 0;
-  const averageLineData = new Array(realizadoValues.length).fill(averageRealizado);
+  const monthlyData = dashboardData?.dados_mensais || [];
+  const realizadoValues = monthlyData.map(d => d.realizado);
 
-  const lineChartData = dashboardData?.dados_mensais ? {
-    labels: dashboardData.dados_mensais.map(d => d.mes.substring(0, 3)),
+  // A média do realizado deve ser calculada apenas sobre meses com atividade (orçado > 0 ou realizado > 0)
+  // para evitar que meses futuros (com valor 0) distorçam o resultado.
+  const activeMonths = monthlyData.filter(d => d.orcado > 0 || d.realizado > 0);
+  const averageRealizado = activeMonths.length > 0
+    ? activeMonths.reduce((sum, d) => sum + d.realizado, 0) / activeMonths.length
+    : 0;
+  
+  const averageLineData = new Array(monthlyData.length).fill(averageRealizado);
+
+  const lineChartData = monthlyData.length > 0 ? {
+    labels: monthlyData.map(d => d.mes.substring(0, 3)),
     datasets: [
       {
         label: 'Orçado',
-        data: dashboardData.dados_mensais.map(d => d.orcado),
+        data: monthlyData.map(d => d.orcado),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4
@@ -321,7 +329,6 @@ export default function Dashboard() {
               onChange={(e) => handleFilterChange('ano', e.target.value ? parseInt(e.target.value) : undefined)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             >
-              <option value="">Todos os Anos</option>
               {filtrosDisponiveis.anos.map(ano => (
                 <option key={ano} value={ano}>{ano}</option>
               ))}
