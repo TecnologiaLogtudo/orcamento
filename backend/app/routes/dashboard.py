@@ -138,42 +138,68 @@ def get_dashboard():
             })
         
         # Mês crítico
-        # 1. O mês com a maior diferença positiva (orçado - realizado).
-        # 2. Se não houver mês com diferença positiva, o mês com a menor diferença negativa (mais próximo de zero).
+        # - Mês de maior economia: maior desvio positivo (orçado - realizado)
+        # - Mês de maior gasto: maior desvio negativo (menor valor de dif)
+        # - Mês de maior precisão: menor desvio absoluto (mais próximo de zero)
         meses_criticos = []
         
         # Filtrar meses com dados para evitar processar meses vazios
         meses_com_dados = [m for m in dados_por_mes if m['orcado'] > 0 or m['realizado'] > 0]
 
         if meses_com_dados:
-            meses_positivos = [m for m in meses_com_dados if m['dif'] > 0]
+            # Dicionário para guardar os meses únicos, usando o nome do mês como chave
+            candidatos = {}
 
-            if meses_positivos:
-                # Caso 1: Encontrar a maior diferença positiva
-                maior_dif_positiva = max(mes['dif'] for mes in meses_positivos)
-                
-                # Encontrar todos os meses que têm essa maior diferença
-                meses_criticos = [{
-                    'mes': mes['mes'],
-                    'orcado': mes['orcado'],
-                    'realizado': mes['realizado'],
-                    'desvio': mes['dif'],
-                    'percentual': ((mes['realizado'] / mes['orcado'] * 100) - 100) if mes['orcado'] and mes['orcado'] > 0 else 0.0
-                } for mes in meses_positivos if mes['dif'] == maior_dif_positiva]
+            # 1. Mês de maior economia (maior desvio positivo)
+            maior_economia = max(meses_com_dados, key=lambda m: m['dif'])
+            if maior_economia['dif'] > 0:
+                candidatos[maior_economia['mes']] = {
+                    'mes': maior_economia['mes'],
+                    'orcado': maior_economia['orcado'],
+                    'realizado': maior_economia['realizado'],
+                    'desvio': maior_economia['dif'],
+                    'percentual': ((maior_economia['realizado'] / maior_economia['orcado'] * 100) - 100) if maior_economia['orcado'] > 0 else 0.0,
+                    'tipo': 'economia'
+                }
+
+            # 2. Mês de maior gasto (maior desvio negativo)
+            maior_gasto = min(meses_com_dados, key=lambda m: m['dif'])
+            if maior_gasto['dif'] < 0:
+                candidatos[maior_gasto['mes']] = {
+                    'mes': maior_gasto['mes'],
+                    'orcado': maior_gasto['orcado'],
+                    'realizado': maior_gasto['realizado'],
+                    'desvio': maior_gasto['dif'],
+                    'percentual': ((maior_gasto['realizado'] / maior_gasto['orcado'] * 100) - 100) if maior_gasto['orcado'] > 0 else 0.0,
+                    'tipo': 'gasto'
+                }
             
-            else:
-                # Caso 2: Nenhum mês com dif positiva, encontrar o mais próximo de zero (maior valor negativo/zero)
-                if meses_com_dados: # Garante que não está vazio
-                    mais_proximo_de_zero = max(mes['dif'] for mes in meses_com_dados)
-                    
-                    # Encontrar todos os meses que têm essa diferença
-                    meses_criticos = [{
-                        'mes': mes['mes'],
-                        'orcado': mes['orcado'],
-                        'realizado': mes['realizado'],
-                        'desvio': mes['dif'],
-                        'percentual': ((mes['realizado'] / mes['orcado'] * 100) - 100) if mes['orcado'] and mes['orcado'] > 0 else 0.0
-                    } for mes in meses_com_dados if mes['dif'] == mais_proximo_de_zero]
+            # 3. Mês de maior precisão (menor desvio absoluto)
+            maior_precisao = min(meses_com_dados, key=lambda m: abs(m['dif']))
+            # Adiciona apenas se o mês ainda não foi selecionado
+            if maior_precisao['mes'] not in candidatos:
+                candidatos[maior_precisao['mes']] = {
+                    'mes': maior_precisao['mes'],
+                    'orcado': maior_precisao['orcado'],
+                    'realizado': maior_precisao['realizado'],
+                    'desvio': maior_precisao['dif'],
+                    'percentual': ((maior_precisao['realizado'] / maior_precisao['orcado'] * 100) - 100) if maior_precisao['orcado'] > 0 else 0.0,
+                    'tipo': 'precisao'
+                }
+
+            meses_criticos = list(candidatos.values())
+            
+            # Fallback para o caso de todos os desvios serem zero
+            if not meses_criticos and meses_com_dados:
+                mes_neutro = meses_com_dados[0] # Pega o primeiro mês com dados
+                meses_criticos.append({
+                    'mes': mes_neutro['mes'],
+                    'orcado': mes_neutro['orcado'],
+                    'realizado': mes_neutro['realizado'],
+                    'desvio': mes_neutro['dif'],
+                    'percentual': 0.0,
+                    'tipo': 'neutro'
+                })
         
         # Top 5 centros de custo por desvio
         query_centros_custo = db.session.query(

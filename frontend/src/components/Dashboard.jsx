@@ -492,35 +492,56 @@ export default function Dashboard() {
               </h2>
             </div>
             <div className="space-y-4">
-              {dashboardData.mes_critico.map((critico, index) => (
-                <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">
-                        {critico.desvio > 0 ? 'Mês de maior economia' : 'Mês com gasto mais próximo do orçado'}
-                      </p>
-                      <p className="text-xl font-bold text-gray-900">
-                        {critico.mes}
-                      </p>
+              {(() => {
+                const sortOrder = { 'economia': 1, 'precisao': 2, 'gasto': 3, 'neutro': 4 };
+                const sortedCriticos = [...dashboardData.mes_critico].sort((a, b) => (sortOrder[a.tipo] || 99) - (sortOrder[b.tipo] || 99));
+
+                return sortedCriticos.map((critico, index) => {
+                  const cardStyle = critico.tipo === 'economia'
+                    ? 'bg-green-50 border-green-200'
+                    : critico.tipo === 'gasto'
+                      ? 'bg-red-50 border-red-200'
+                      : critico.tipo === 'precisao'
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-orange-50 border-orange-200';
+
+                  const title = critico.tipo === 'economia'
+                    ? 'Mês de maior economia'
+                    : critico.tipo === 'gasto'
+                      ? 'Mês de maior gasto'
+                      : critico.tipo === 'precisao'
+                        ? 'Mês de Maior Precisão'
+                        : 'Mês com gasto próximo ao orçado';
+
+                  return (
+                    <div key={index} className={`${cardStyle} rounded-lg p-4`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">{title}</p>
+                          <p className="text-xl font-bold text-gray-900">
+                            {critico.mes}
+                          </p>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <p className={`text-lg font-semibold ${
+                            critico.desvio > 0 ? 'text-green-600' : critico.desvio < 0 ? 'text-red-600' : 'text-gray-700'
+                          }`}>
+                            {formatCurrency(critico.desvio)}
+                          </p>
+                          <span className={`text-sm font-semibold ${ critico.percentual > 0 ? 'text-red-500' : critico.percentual < 0 ? 'text-green-500' : 'text-gray-500' }`}>
+                            ({(parseFloat(critico.percentual) || 0).toFixed(2)}%)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-current opacity-50">
+                        <span>Orçado: {formatCurrency(critico.orcado)}</span>
+                        <span className="mx-2">|</span>
+                        <span>Realizado: {formatCurrency(critico.realizado)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-baseline gap-2">
-                      <p className={`text-lg font-semibold ${
-                        critico.desvio >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {formatCurrency(critico.desvio)}
-                      </p>
-                      <span className={`text-sm font-semibold ${ critico.percentual >= 0 ? 'text-red-500' : 'text-green-500' }`}>
-                        ({(parseFloat(critico.percentual) || 0).toFixed(2)}%)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-200">
-                    <span>Orçado: {formatCurrency(critico.orcado)}</span>
-                    <span className="mx-2">|</span>
-                    <span>Realizado: {formatCurrency(critico.realizado)}</span>
-                  </div>
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
