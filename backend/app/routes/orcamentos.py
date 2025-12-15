@@ -476,7 +476,7 @@ def batch_submit_orcamentos():
                 errors.append(f'Orçamento com ID {orc_id} não encontrado.')
                 continue
             
-            if orcamento.status == 'rascunho':
+            if orcamento.status in ['rascunho', 'reprovado']:
                 orcamento.status = 'aguardando_aprovacao'
                 orcamento.atualizado_por = user_id
                 updated_count += 1

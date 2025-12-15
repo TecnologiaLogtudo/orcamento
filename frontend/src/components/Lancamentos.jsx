@@ -316,6 +316,14 @@ useEffect(() => {
     setModifiedIds(prevIds => new Set(prevIds).add(uniqueId));
   };
 
+  const getMonthName = (mes) => {
+    if (typeof mes === 'number') {
+      const mesObj = opcoesFiltro.meses.find(m => m.valor === mes);
+      return mesObj ? mesObj.nome : null;
+    }
+    return mes; // Assume it's already a valid name
+  };
+
   const handleSendForApproval = async () => {
     const modifiedOrcamentos = orcamentos.filter(orc => {
       const uniqueId = orc.id_orcamento || `${orc.id_categoria}-${orc.mes}-${orc.ano}`;
@@ -332,16 +340,15 @@ useEffect(() => {
     try {
       // Passo 1: Salvar as alterações
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, ...rest } = orc;
-        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        const { categoria, dif, ...rest } = orc;
         return {
           ...rest,
-          mes: mesObj ? mesObj.nome : rest.mes,
+          mes: getMonthName(rest.mes),
           id_orcamento: rest.id_orcamento || null
         };
       });
 
-      const savedResult = await orcamentosAPI.batchUpdate({ orcamentos: orcamentosPayload });
+      const savedResult = await orcamentosAPI.batchUpdate(orcamentosPayload);
       
       // Passo 2: Submeter os orçamentos salvos/atualizados para aprovação
       // O backend retorna os IDs dos orçamentos criados/atualizados
@@ -366,29 +373,34 @@ useEffect(() => {
     });
 
     if (modifiedOrcamentos.length === 0) {
-      showNotification('info', 'Nenhum orçamento reprovado modificado para salvar.');
+      showNotification('info', 'Nenhum orçamento reprovado modificado para reenviar.');
       return;
     }
 
     setSaving(true);
     try {
+      // Passo 1: Salvar as alterações (sem mudar o status aqui)
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, ...rest } = orc;
-        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        const { categoria, dif, status, ...rest } = orc; // O status não é enviado, será definido pelo backend
         return {
           ...rest,
-          mes: mesObj ? mesObj.nome : rest.mes,
-          id_orcamento: rest.id_orcamento || null,
-          status: 'rascunho' // Ao salvar, volta para rascunho para novo ciclo
+          mes: getMonthName(rest.mes),
+          id_orcamento: rest.id_orcamento // Orçamentos reprovados já têm ID
         };
       });
 
       await orcamentosAPI.batchUpdate(orcamentosPayload);
       
-      showNotification('success', `${modifiedOrcamentos.length} orçamento(s) salvos com sucesso como rascunho!`);
+      // Passo 2: Submeter os mesmos orçamentos para aprovação
+      const idsToSubmit = modifiedOrcamentos.map(o => o.id_orcamento);
+      if (idsToSubmit.length > 0) {
+        await orcamentosAPI.batchSubmit(idsToSubmit);
+      }
+
+      showNotification('success', `${modifiedOrcamentos.length} orçamento(s) reenviado(s) para aprovação com sucesso!`);
       loadOrcamentos();
     } catch (error) {
-        showNotification('error', 'Erro ao salvar alterações: ' + (error.response?.data?.error || error.message));
+        showNotification('error', 'Erro ao reenviar para aprovação: ' + (error.response?.data?.error || error.message));
     } finally {
       setSaving(false);
     }
@@ -409,11 +421,10 @@ useEffect(() => {
     setSaving(true);
     try {
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, ...rest } = orc;
-        const mesObj = opcoesFiltro.meses.find(m => m.valor === rest.mes);
+        const { categoria, dif, ...rest } = orc;
         return {
           ...rest,
-          mes: mesObj ? mesObj.nome : rest.mes,
+          mes: getMonthName(rest.mes),
           id_orcamento: rest.id_orcamento // It must have an ID as it is approved
         };
       });
@@ -628,9 +639,9 @@ useEffect(() => {
               {saving ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                <Save size={20} />
+                <Send size={20} />
               )}
-              Salvar Alterações (Reprovados)
+              Reenviar para Aprovação
             </button>
           </div>
         )}
@@ -731,7 +742,7 @@ useEffect(() => {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {canEdit() && ((orc.status !== 'aprovado' && (isAdmin() || orc.status !== 'reprovado')) || (orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano))) ? (
+                  {canEdit() && orc.status === 'aprovado' && isWithinRealizadoEditWindow(orc.mes, orc.ano) ? (
                     <input
                       type="number"
                       value={orc.realizado || ''}
