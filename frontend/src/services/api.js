@@ -203,4 +203,5 @@ export const logsAPI = {
   search: async (criterios) => (await api.post('/logs/search', criterios)).data,
 };
 
+
 export default api;

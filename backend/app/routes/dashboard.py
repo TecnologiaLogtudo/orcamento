@@ -285,22 +285,20 @@ def get_dashboard_filtros():
 def get_dashboard_comparativo():
     """Retorna dados comparativos entre período atual e período anterior"""
     try:
-        # Período atual (padrão: ano atual)
         ano_atual = request.args.get('ano', type=int)
         if not ano_atual:
-            # Detecta o ano mais recente nos dados
-            max_ano = db.session.query(func.max(ResumoOrcamento.ano)).scalar()
+            max_ano = db.session.query(func.max(Orcamento.ano)).scalar()
             ano_atual = max_ano if max_ano else datetime.now().year
         
         ano_anterior = ano_atual - 1
         
-        # Função para obter dados de um ano
         def get_dados_ano(ano):
+            """Obtém dados agregados para um ano específico diretamente de Orçamentos."""
             query = db.session.query(
-                func.sum(ResumoOrcamento.total_orcado).label('total_orcado'),
-                func.sum(ResumoOrcamento.total_realizado).label('total_realizado'),
-                func.sum(ResumoOrcamento.total_dif).label('total_dif')
-            ).filter(ResumoOrcamento.ano == ano)
+                func.sum(Orcamento.orcado).label('total_orcado'),
+                func.sum(Orcamento.realizado).label('total_realizado'),
+                func.sum(Orcamento.dif).label('total_dif')
+            ).filter(Orcamento.ano == ano, Orcamento.status == 'aprovado')
             
             result = query.first()
             return {
@@ -312,21 +310,14 @@ def get_dashboard_comparativo():
         dados_atual = get_dados_ano(ano_atual)
         dados_anterior = get_dados_ano(ano_anterior)
         
-        # Calcular variações percentuais
         def calcular_variacao(atual, anterior):
             if anterior == 0:
                 return 100.0 if atual > 0 else 0.0
             return ((atual - anterior) / abs(anterior)) * 100
         
         comparativo = {
-            'periodo_atual': {
-                'ano': ano_atual,
-                'dados': dados_atual
-            },
-            'periodo_anterior': {
-                'ano': ano_anterior,
-                'dados': dados_anterior
-            },
+            'periodo_atual': {'ano': ano_atual, 'dados': dados_atual},
+            'periodo_anterior': {'ano': ano_anterior, 'dados': dados_anterior},
             'variacoes': {
                 'total_orcado_pct': calcular_variacao(dados_atual['total_orcado'], dados_anterior['total_orcado']),
                 'total_realizado_pct': calcular_variacao(dados_atual['total_realizado'], dados_anterior['total_realizado']),
@@ -344,73 +335,52 @@ def get_dashboard_comparativo():
 def get_dashboard_distribuicao():
     """Retorna dados de distribuição para gráficos de pizza"""
     try:
-        # Filtros
         ano = request.args.get('ano', type=int)
-        categoria = request.args.get('categoria')
+        categoria_filtro = request.args.get('categoria')
         uf = request.args.get('uf')
         centro_custo = request.args.get('centro_custo')
-        tipo = request.args.get('tipo', default='categoria')  # 'categoria', 'centro_custo', ou 'grupo' (obsoleto)
-        
-        # Query base para distribuição
-        if tipo == 'categoria':
-            query = db.session.query(
-                ResumoOrcamento.categoria.label('nome'),
-                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
-                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
-                func.sum(ResumoOrcamento.total_dif).label('dif')
-            )
-        elif tipo == 'centro_custo':
-            query = db.session.query(
-                ResumoOrcamento.master.label('nome'),
-                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
-                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
-                func.sum(ResumoOrcamento.total_dif).label('dif')
-            )
-        else:  # tipo == 'grupo'
-            query = db.session.query(
-                ResumoOrcamento.grupo.label('nome'),
-                func.sum(ResumoOrcamento.total_orcado).label('orcado'),
-                func.sum(ResumoOrcamento.total_realizado).label('realizado'),
-                func.sum(ResumoOrcamento.total_dif).label('dif')
-            )
-        
-        # Aplicar filtros
+        tipo = request.args.get('tipo', default='categoria')
+
+        if tipo not in ['categoria', 'centro_custo', 'grupo']:
+            return jsonify({'error': 'Tipo de distribuição inválido'}), 400
+
+        group_by_col = {
+            'categoria': Categoria.categoria,
+            'centro_custo': Categoria.master,
+            'grupo': Categoria.grupo
+        }[tipo]
+
+        query = db.session.query(
+            group_by_col.label('nome'),
+            func.sum(Orcamento.orcado).label('orcado'),
+            func.sum(Orcamento.realizado).label('realizado')
+        ).join(Categoria, Orcamento.id_categoria == Categoria.id_categoria)\
+         .filter(Orcamento.status == 'aprovado')
+
         if ano:
-            query = query.filter(ResumoOrcamento.ano == ano)
-        if categoria:
-            query = query.filter(ResumoOrcamento.categoria == categoria)
+            query = query.filter(Orcamento.ano == ano)
+        if categoria_filtro:
+            query = query.filter(Categoria.categoria == categoria_filtro)
         if uf:
-            query = query.filter(ResumoOrcamento.uf == uf)
+            query = query.filter(Categoria.uf == uf)
         if centro_custo:
-            query = query.filter(ResumoOrcamento.master == centro_custo)
-        
-        # Agrupar
-        if tipo == 'categoria':
-            query = query.group_by(ResumoOrcamento.categoria)
-        elif tipo == 'centro_custo':
-            query = query.group_by(ResumoOrcamento.master)
-        else:
-            query = query.group_by(ResumoOrcamento.grupo)
-        
-        resultados = query.all()
-        
-        # Formatar dados para gráfico de pizza
-        dados_pizza = []
-        for row in resultados:
-            dados_pizza.append({
-                'nome': row.nome,
-                'orcado': float(row.orcado) if row.orcado else 0.0,
-                'realizado': float(row.realizado) if row.realizado else 0.0,
-                'dif': float(row.dif) if row.dif else 0.0,
-                'percentual': 0.0  # Será calculado no frontend
-            })
-        
-        # Calcular percentuais
+            query = query.filter(Categoria.master == centro_custo)
+
+        resultados = query.group_by('nome').all()
+
+        dados_pizza = [
+            {'nome': row.nome, 'orcado': float(row.orcado or 0), 'realizado': float(row.realizado or 0)}
+            for row in resultados if row.nome
+        ]
+
         total_orcado = sum(item['orcado'] for item in dados_pizza)
         if total_orcado > 0:
             for item in dados_pizza:
                 item['percentual'] = (item['orcado'] / total_orcado) * 100
-        
+        else:
+            for item in dados_pizza:
+                item['percentual'] = 0.0
+
         return jsonify({
             'tipo': tipo,
             'dados': dados_pizza,

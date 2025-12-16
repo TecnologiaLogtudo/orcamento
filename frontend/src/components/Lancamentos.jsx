@@ -69,29 +69,32 @@ useEffect(() => {
         const stateFilters = location?.state;
         if (stateFilters && !navAppliedRef.current) {
           try {
-            const filters = stateFilters;
+            // Combina os filtros do estado da navegação com os padrões, 
+            // garantindo que ano/mês tenham um fallback se não forem fornecidos.
             const newFilters = {
-              ano: filters.ano || '',
-              mes: filters.mes || '',
-              master: filters.master || '',
-              uf: filters.uf || '',
-              categoria: filters.categoria || '',
-              status: filters.status || '',
+              ano: new Date().getFullYear(),
+              mes: new Date().getMonth() + 1,
+              master: '',
+              uf: '',
+              categoria: '',
+              status: '',
+              ...stateFilters,
             };
             setFiltros(newFilters);
             navAppliedRef.current = true;
-            // Limpar history.state diretamente para persistir entre desmontagens/montagens
+            
+            // Limpar history.state diretamente para evitar reaplicação em re-renderizações
             try {
               const url = window.location.pathname + window.location.search + window.location.hash;
               window.history.replaceState(null, document.title, url);
             } catch (err) {
               console.error('Falha ao limpar history.state via replaceState:', err);
             }
+            
             // Carregar imediatamente com os filtros aplicados para reduzir janela de inconsistência
             try {
               loadOrcamentos(newFilters);
             } catch (err) {
-              // Se por algum motivo a função não estiver disponível, continuar normalmente
               console.error('Erro ao disparar carga imediata de orçamentos:', err);
             }
           } catch (error) {
@@ -107,7 +110,7 @@ useEffect(() => {
         const windowLength = 6; // exibe 6 anos consecutivos
         const windowStart = Math.max(startYear, currentYear);
         const futureYears = Array.from({ length: windowLength }, (_, i) => windowStart + i);
-        const years = Array.from(new Set([...(data.anos || []), ...futureYears])).sort((a, b) => b - a);
+        const years = Array.from(new Set([currentYear, ...(data.anos || []), ...futureYears])).sort((a, b) => a - b);
 
         setOpcoesFiltro(prev => ({
           ...prev,

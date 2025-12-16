@@ -37,7 +37,7 @@ def create_app(config_name='default'):
         # Configuração padrão para produção caso não seja especificada
         cors_origins = ["https://logtudo.com.br", "https://www.logtudo.com.br"]
     
-    CORS(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=True)
+    CORS(app, origins=cors_origins, supports_credentials=True)
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader

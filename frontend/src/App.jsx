@@ -115,11 +115,11 @@ function AppRoutes() {
           </RestrictedRoute>
         } />
         
-        <Route path="logs" element={
-          <RestrictedRoute allowedRoles={['admin']}>
-            <Logs />
-          </RestrictedRoute>
-        } />
+                <Route path="logs" element={
+                  <RestrictedRoute allowedRoles={['admin']}>
+                    <Logs />
+                  </RestrictedRoute>
+                } />
       </Route>
 
       {/* Rota 404 */}
