@@ -23,9 +23,13 @@ export default function SubmissionsLog({ onNavigateToLancamentos }) {
   };
 
   const handleNavigate = (submission) => {
+    // A data da submissão contém o mês/ano de referência
+    const submissionDate = new Date(submission.data);
     const filters = {
       status: 'aguardando_aprovacao',
-      ano: '',
+      // Extrai o ano e o mês da data da submissão
+      ano: submissionDate.getFullYear(),
+      mes: submissionDate.getMonth() + 1, // getMonth() é 0-indexado, então adicionamos 1
     };
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);
