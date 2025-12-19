@@ -1,0 +1,108 @@
+openapi: 3.0.3
+
+info:
+  title: API Orcamento - LogTudo
+  description: >
+    API REST para gerenciamento de orçamentos.
+    
+    🔐 **Entry point da aplicação:**  
+    O primeiro endpoint a ser utilizado é `POST /api/login`, responsável
+    pela autenticação e geração do token JWT.
+  version: 1.0.0
+  contact:
+    name: LogTudo
+    url: https://www.logtudo.com.br
+
+servers:
+  - url: https://www.logtudo.com.br/orcamento
+    description: Produção
+
+tags:
+  - name: Health
+    description: Monitoramento da API
+  - name: Auth
+    description: Autenticação e autorização
+  - name: Usuário
+    description: Operações autenticadas
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check da API
+      responses:
+        '200':
+          description: API operacional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: API funcionando
+
+  /api/login:
+    post:
+      tags: [Auth]
+      summary: Login (ENTRYPOINT da API)
+      description: >
+        Endpoint inicial da aplicação.
+        Retorna um token JWT que deve ser usado nas demais requisições.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, senha]
+              properties:
+                email:
+                  type: string
+                  example: admin@empresa.com
+                senha:
+                  type: string
+                  example: senha123
+      responses:
+        '200':
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  usuario:
+                    type: object
+                    properties:
+                      id_usuario:
+                        type: integer
+                        example: 4
+                      nome:
+                        type: string
+                        example: Administrador
+                      email:
+                        type: string
+                        example: admin@empresa.com
+                      papel:
+                        type: string
+                        example: admin
+        '401':
+          description: Credenciais inválidas
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
