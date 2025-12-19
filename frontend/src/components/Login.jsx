@@ -114,16 +114,6 @@ export default function Login() {
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
-
-          {/* Informação de Teste */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center">
-              <strong>Acesso de teste:</strong><br />
-              Admin: admin@empresa.com / admin123<br />
-              Gestor: gestor@empresa.com / gestor123<br />
-              Visualizador: visualizador@empresa.com / visualizador123
-            </p>
-          </div>
         </div>
 
         {/* Footer */}

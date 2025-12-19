@@ -32,6 +32,8 @@ class Config:
         "https://www.orcamento.logtudo.com.br",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
@@ -91,7 +93,11 @@ class ProductionConfig(Config):
         return db
 
     # Configurações específicas de produção
-    CORS_ORIGINS = ["https://orcamento.logtudo.com.br"]
+        CORS_ORIGINS = [
+        "https://orcamento.logtudo.com.br",
+        "https://www.orcamento.logtudo.com.br",
+        "https://orcamento-silk.vercel.app"
+    ]
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
