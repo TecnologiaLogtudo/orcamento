@@ -39,8 +39,8 @@ class Config:
     ]
     
     # Uploads e Exports
-    UPLOAD_FOLDER = 'uploads'
-    EXPORT_FOLDER = 'exports'
+    UPLOAD_FOLDER = '/tmp/uploads'
+    EXPORT_FOLDER = '/tmp/exports'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max
     
     # Paginação
