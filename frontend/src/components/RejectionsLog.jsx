@@ -23,10 +23,25 @@ export default function RejectionsLog({ onNavigateToLancamentos }) {
   };
 
   const handleNavigate = (rejection) => {
+    const MESES = {
+      'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
+      'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12
+    };
+
+    // Pega o ano e mês do primeiro orçamento da lista de reprovações
+    const firstOrcamento = rejection.orcamentos && rejection.orcamentos[0];
+    
+    if (!firstOrcamento) {
+      console.error("Reprovação não contém orçamentos para extrair data.");
+      return;
+    }
+
     const filters = {
       status: 'reprovado',
-      ano: '',
+      ano: firstOrcamento.ano,
+      mes: MESES[firstOrcamento.mes] || new Date().getMonth() + 1, // Fallback para o mês atual
     };
+
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);
     }

@@ -294,11 +294,11 @@ def import_categorias():
                 
                 categoria = Categoria(
                     categoria=row.get('categoria'),
-                    uf=str(row.get('uf')) if row.get('uf') else None,
-                    master=str(row.get('master')) if row.get('master') else None,
-                    grupo=str(row.get('grupo')) if row.get('grupo') else None,
-                    cod_class=str(row.get('cod_class')) if row.get('cod_class') else None,
-                    classe_custo=str(row.get('classe_custo')) if row.get('classe_custo') else None
+                    uf=str(row.get('uf')) if pd.notna(row.get('uf')) else None,
+                    master=str(row.get('master')) if pd.notna(row.get('master')) else None,
+                    grupo=str(row.get('grupo')) if pd.notna(row.get('grupo')) else None,
+                    cod_class=str(row.get('cod_class')) if pd.notna(row.get('cod_class')) else None,
+                    classe_custo=str(row.get('classe_custo')) if pd.notna(row.get('classe_custo')) else None
                 )
                 
                 db.session.add(categoria)

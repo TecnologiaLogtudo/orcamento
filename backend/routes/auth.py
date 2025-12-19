@@ -135,55 +135,78 @@ def create_usuario():
 @bp.route('/usuarios/<int:id_usuario>', methods=['PUT'])
 @jwt_required()
 def update_usuario(id_usuario):
-    """Atualiza usuário (apenas admin)"""
+    """
+    Atualiza usuário.
+    - Admin: pode alterar nome, email, papel e senha de qualquer usuário.
+    - Outros usuários: podem alterar apenas a própria senha, fornecendo a senha antiga.
+    """
     try:
-        user_id = get_jwt_identity()
-        current_user = Usuario.query.get(user_id)
-        
-        if current_user.papel != 'admin':
-            return jsonify({'error': 'Acesso negado'}), 403
-        
-        usuario = Usuario.query.get(id_usuario)
-        if not usuario:
+        current_user_id = get_jwt_identity()
+        current_user = Usuario.query.get(current_user_id)
+        usuario_para_atualizar = Usuario.query.get(id_usuario)
+
+        if not usuario_para_atualizar:
             return jsonify({'error': 'Usuário não encontrado'}), 404
-        
+
         data = request.get_json()
-        dados_antigos = usuario.to_dict()
-        
-        # Atualizar campos
-        if 'nome' in data:
-            usuario.nome = data['nome']
-        if 'email' in data:
-            # Verificar se email não está em uso
-            email_existente = Usuario.query.filter_by(email=data['email']).first()
-            if email_existente and email_existente.id_usuario != id_usuario:
-                return jsonify({'error': 'Email já em uso'}), 400
-            usuario.email = data['email']
-        if 'papel' in data:
-            if data['papel'] not in ['admin', 'gestor', 'visualizador']:
-                return jsonify({'error': 'Papel inválido'}), 400
-            usuario.papel = data['papel']
-        if 'senha' in data:
-            usuario.set_password(data['senha'])
-        
+        dados_antigos = usuario_para_atualizar.to_dict()
+        log_acao = ""
+
+        # Lógica para ADMIN
+        if current_user.papel == 'admin':
+            if 'nome' in data:
+                usuario_para_atualizar.nome = data['nome']
+            if 'email' in data and data['email'] != usuario_para_atualizar.email:
+                email_existente = Usuario.query.filter(Usuario.email == data['email'], Usuario.id_usuario != id_usuario).first()
+                if email_existente:
+                    return jsonify({'error': 'Email já em uso por outro usuário'}), 400
+                usuario_para_atualizar.email = data['email']
+            if 'papel' in data:
+                if data['papel'] not in ['admin', 'gestor', 'visualizador']:
+                    return jsonify({'error': 'Papel inválido'}), 400
+                usuario_para_atualizar.papel = data['papel']
+            if 'senha' in data and data['senha']:
+                usuario_para_atualizar.set_password(data['senha'])
+            
+            log_acao = f'Admin atualizou usuário {usuario_para_atualizar.nome}'
+
+        # Lógica para USUÁRIO REGULAR (alterando a própria senha)
+        elif str(current_user.id_usuario) == str(id_usuario):
+            if 'senha' in data and data['senha']:
+                if 'senha_antiga' not in data or not usuario_para_atualizar.check_password(data['senha_antiga']):
+                    return jsonify({'error': 'Senha antiga inválida'}), 401
+                
+                # Garante que apenas a senha possa ser alterada por não-admins
+                if any(k in data for k in ['nome', 'email', 'papel']):
+                    return jsonify({'error': 'Você só pode alterar sua própria senha'}), 403
+
+                usuario_para_atualizar.set_password(data['senha'])
+                log_acao = f'Usuário {usuario_para_atualizar.nome} alterou a própria senha'
+            else:
+                 return jsonify({'error': 'Nenhuma alteração de senha fornecida'}), 400
+
+        # Tentativa de acesso não autorizado
+        else:
+            return jsonify({'error': 'Acesso negado. Você não pode alterar dados de outro usuário.'}), 403
+
         db.session.commit()
-        
+
         # Registrar no log
         log = Log(
             id_usuario=current_user.id_usuario,
-            acao=f'Atualizou usuário {usuario.nome}',
+            acao=log_acao,
             tabela_afetada='usuarios',
-            id_registro=usuario.id_usuario,
+            id_registro=usuario_para_atualizar.id_usuario,
             detalhes={
                 'antes': dados_antigos,
-                'depois': usuario.to_dict()
+                'depois': usuario_para_atualizar.to_dict()
             }
         )
         db.session.add(log)
         db.session.commit()
-        
-        return jsonify(usuario.to_dict()), 200
-        
+
+        return jsonify(usuario_para_atualizar.to_dict()), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

@@ -23,14 +23,26 @@ export default function SubmissionsLog({ onNavigateToLancamentos }) {
   };
 
   const handleNavigate = (submission) => {
-    // A data da submissão contém o mês/ano de referência
-    const submissionDate = new Date(submission.data);
+    const MESES = {
+      'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
+      'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12
+    };
+
+    // Pega o ano e mês do primeiro orçamento da lista
+    const firstOrcamento = submission.orcamentos && submission.orcamentos[0];
+    
+    if (!firstOrcamento) {
+      console.error("Submissão não contém orçamentos para extrair data.");
+      // Fallback para o comportamento antigo ou simplesmente não navegar
+      return;
+    }
+
     const filters = {
       status: 'aguardando_aprovacao',
-      // Extrai o ano e o mês da data da submissão
-      ano: submissionDate.getFullYear(),
-      mes: submissionDate.getMonth() + 1, // getMonth() é 0-indexado, então adicionamos 1
+      ano: firstOrcamento.ano,
+      mes: MESES[firstOrcamento.mes] || new Date().getMonth() + 1, // Fallback para o mês atual
     };
+
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);
     }

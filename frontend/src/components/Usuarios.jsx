@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { usuariosAPI } from '../services/api';
+import UserEditModal from './UserEditModal';
 
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({ nome: '', email: '', senha: '', papel: 'visualizador' });
 
   useEffect(() => {
@@ -12,6 +14,7 @@ export default function Usuarios() {
   }, []);
 
   const loadUsuarios = async () => {
+    setLoading(true);
     try {
       const data = await usuariosAPI.list();
       setUsuarios(data);
@@ -22,16 +25,28 @@ export default function Usuarios() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     try {
       await usuariosAPI.create(formData);
       alert('Usuário criado com sucesso!');
-      setShowModal(false);
+      setShowCreateModal(false);
       setFormData({ nome: '', email: '', senha: '', papel: 'visualizador' });
       loadUsuarios();
     } catch (error) {
       alert('Erro: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleUpdateUser = async (id, data) => {
+    try {
+      await usuariosAPI.update(id, data);
+      alert('Usuário atualizado com sucesso!');
+      setEditingUser(null);
+      loadUsuarios();
+    } catch (error) {
+      alert('Erro ao atualizar: ' + (error.response?.data?.error || error.message));
+      throw error;
     }
   };
 
@@ -52,7 +67,7 @@ export default function Usuarios() {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">Usuários</h1>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Novo Usuário
@@ -83,6 +98,12 @@ export default function Usuarios() {
                   <td className="px-6 py-4 text-sm capitalize">{user.papel}</td>
                   <td className="px-6 py-4 text-sm text-right">
                     <button
+                      onClick={() => setEditingUser(user)}
+                      className="text-indigo-600 hover:text-indigo-900 mr-4"
+                    >
+                      Editar
+                    </button>
+                    <button
                       onClick={() => handleDelete(user.id_usuario)}
                       className="text-red-600 hover:text-red-900"
                     >
@@ -96,11 +117,11 @@ export default function Usuarios() {
         )}
       </div>
 
-      {showModal && (
+      {showCreateModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-bold mb-4">Novo Usuário</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
               <input
                 type="text"
                 placeholder="Nome"
@@ -122,7 +143,7 @@ export default function Usuarios() {
                 placeholder="Senha"
                 required
                 value={formData.senha}
-                onChange={(e) => setFormData({...formData, senha: e.target.value})}
+                onChange={(e) => setFormData({...formData, senha: e.gét.value})}
                 className="w-full px-3 py-2 border rounded-lg"
               />
               <select
@@ -137,7 +158,7 @@ export default function Usuarios() {
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setShowCreateModal(false)}
                   className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
                   Cancelar
@@ -152,6 +173,14 @@ export default function Usuarios() {
             </form>
           </div>
         </div>
+      )}
+
+      {editingUser && (
+        <UserEditModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleUpdateUser}
+        />
       )}
     </div>
   );
