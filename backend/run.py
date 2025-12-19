@@ -35,7 +35,7 @@ def create_app(config_name='default'):
     
     CORS(
         app,
-        resources={r"/api/*": {"origins": ["http://localhost:5173", "https://orcamento-silk.vercel.app"]}},
+        resources={r"/api/*": {"origins": ["http://localhost:5173", "https://orcamento-coral.vercel.app"]}},
         supports_credentials=True,
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
