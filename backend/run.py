@@ -55,6 +55,8 @@ def create_app(config_name='default'):
         return token is not None
     
     # Criar diretórios necessários
+    print(f"Using config: {config_name}")
+    print(f"Upload folder: {app.config['UPLOAD_FOLDER']}")
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['EXPORT_FOLDER'], exist_ok=True)
     
