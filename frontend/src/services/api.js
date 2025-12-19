@@ -3,7 +3,7 @@ import axios from 'axios';
 // ================== CONFIGURAÇÃO BASE ==================
 
 const api = axios.create({
-  baseURL: "https://orcamento-silk.vercel.app/api/"
+  baseURL: "https://orcamento-coral.vercel.app/api/"
 });
 
 // ============= INTERCEPTORES =============

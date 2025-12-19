@@ -33,9 +33,11 @@ def create_app(config_name='default'):
     # Inicializar extensões
     db.init_app(app)
     
+    # Usar a configuração CORS_ORIGINS definida em `config.py`
+    cors_origins = app.config.get('CORS_ORIGINS', '*')
     CORS(
         app,
-        resources={r"/api/*": {"origins": ["http://localhost:5173", "https://orcamento-silk.vercel.app", "https://orcamento-coral.vercel.app"]}},
+        resources={r"/api/*": {"origins": cors_origins}},
         supports_credentials=True,
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
