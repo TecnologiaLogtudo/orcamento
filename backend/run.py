@@ -33,12 +33,13 @@ def create_app(config_name='default'):
     # Inicializar extensões
     db.init_app(app)
     
-    # Obter origens CORS do config
-    cors_origins = app.config.get('CORS_ORIGINS', [])
-    if config_name == 'production' and not cors_origins:
-        # Configuração padrão para produção caso não seja especificada
-        cors_origins = ["https://orcamento.logtudo.com.br", "https://www.orcamento.logtudo.com.br"]
-    
+    # Simplificando a configuração de CORS para depuração
+    cors_origins = [
+        "https://orcamento.logtudo.com.br",
+        "https://www.orcamento.logtudo.com.br",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
     CORS(app, origins=cors_origins, supports_credentials=True)
     jwt = JWTManager(app)
 
