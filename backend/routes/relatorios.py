@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import db, Usuario, ResumoOrcamento, Orcamento, Categoria
+from models import db, Usuario, ResumoOrcamento, Orcamento, Categoria
 from sqlalchemy import and_, or_
 import pandas as pd
 from io import BytesIO

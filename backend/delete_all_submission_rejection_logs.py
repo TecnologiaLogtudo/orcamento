@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from sqlalchemy import or_
 
 from app import create_app
-from app.models import db, Log
+from models import db, Log
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()

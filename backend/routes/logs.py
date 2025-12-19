@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import db, Usuario, Log
+from models import db, Usuario, Log
 from datetime import datetime, timedelta
 
 bp = Blueprint('logs', __name__)

@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, 'backend')
-from app import create_app
-from app.models import db, Orcamento, Log
+from backend.run import create_app
+from backend.models import db, Orcamento, Log
 
 app = create_app()
 

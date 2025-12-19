@@ -1,8 +1,8 @@
 # c:/Users/felip/OneDrive/Logtudo/Controle_orcamento/backend/populate_users.py
 
 import os
-from app import create_app, db
-from app.models import Usuario
+from app import create_app
+from models import db, Usuario
 from dotenv import load_dotenv
 
 # Carrega as variáveis de ambiente do arquivo .env

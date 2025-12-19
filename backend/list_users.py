@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, '.')
 from app import create_app
-from app.models import db, Usuario
+from models import db, Usuario
 
 app = create_app()
 

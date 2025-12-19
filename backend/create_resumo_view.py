@@ -4,7 +4,7 @@ Script para criar ou atualizar a view resumo_orcamento
 Agrega dados de orçamentos aprovados com informações das categorias
 """
 from app import create_app
-from app.models import db
+from models import db
 from sqlalchemy import text
 
 def create_resumo_view():

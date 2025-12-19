@@ -2,7 +2,7 @@ import os
 import click
 from dotenv import load_dotenv
 from app import create_app
-from app.models import db, Log
+from models import db, Log
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()

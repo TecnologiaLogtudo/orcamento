@@ -3,7 +3,7 @@ import sys
 sys.path.insert(0, '/home/users/felip/OneDrive/Logtudo/Controle_orcamento/backend')
 
 from app import create_app
-from app.models import db, Log, Orcamento, Usuario
+from models import db, Log, Orcamento, Usuario
 
 app = create_app()
 

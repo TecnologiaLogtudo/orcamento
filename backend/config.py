@@ -21,13 +21,20 @@ class Config:
     }
 
     # Segurança
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'Logtudo2025PlanoOrçamentario'
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jLogtudo2025@PlanoOrçamentario'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'Logtudo2025PlanoOrcamentario'
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jLogtudo2025@PlanoOrcamentario'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=8)
-    JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 dias
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)  # 7 dias
 
     # CORS
-    CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS = [
+        "https://orcamento.logtudo.com.br",
+        "https://www.orcamento.logtudo.com.br",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
     
     # Uploads e Exports
     UPLOAD_FOLDER = 'uploads'
@@ -84,7 +91,7 @@ class ProductionConfig(Config):
         return db
 
     # Configurações específicas de produção
-    CORS_ORIGINS = ["https://logtudo.com.br"]
+    CORS_ORIGINS = ["https://orcamento.logtudo.com.br"]
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,

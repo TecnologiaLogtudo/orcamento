@@ -1,7 +1,7 @@
 #app/routes/dashboard.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
-from app.models import db, ResumoOrcamento, Orcamento, Categoria
+from models import db, ResumoOrcamento, Orcamento, Categoria
 from sqlalchemy import func, and_
 from functools import lru_cache
 from datetime import datetime, timedelta
