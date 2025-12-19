@@ -93,11 +93,7 @@ class ProductionConfig(Config):
         return db
 
     # Configurações específicas de produção
-        CORS_ORIGINS = [
-        "https://orcamento.logtudo.com.br",
-        "https://www.orcamento.logtudo.com.br",
-        "https://orcamento-silk.vercel.app"
-    ]
+    CORS_ORIGINS = "*"
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,

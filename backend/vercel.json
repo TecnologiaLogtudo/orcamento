@@ -15,11 +15,5 @@
       "src": "/api/(.*)",
       "dest": "app.py"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api"
-    }
   ]
 }

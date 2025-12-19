@@ -33,17 +33,12 @@ def create_app(config_name='default'):
     # Inicializar extensões
     db.init_app(app)
     
-    # Obter origens CORS do config
-    cors_origins = app.config.get('CORS_ORIGINS', [])
-    if config_name == 'production' and not cors_origins:
-        # Configuração padrão para produção caso não seja especificada
-        cors_origins = ["https://orcamento.logtudo.com.br", "https://www.orcamento.logtudo.com.br"]
-    
-    CORS(app, 
-        origins=cors_origins, 
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": ["http://localhost:5173", "https://orcamento-silk.vercel.app"]}},
         supports_credentials=True,
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With"]
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     )
     jwt = JWTManager(app)
 
