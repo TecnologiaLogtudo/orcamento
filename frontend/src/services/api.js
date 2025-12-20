@@ -2,8 +2,18 @@ import axios from 'axios';
 
 // ================== CONFIGURAÇÃO BASE ==================
 
+const getBaseURL = () => {
+  if (import.meta.env.PROD) {
+    // Em produção, o frontend é servido pelo mesmo host do backend.
+    // As chamadas de API são relativas à raiz do site.
+    return "/api";
+  }
+  // Em desenvolvimento, usa a variável de ambiente ou o padrão localhost.
+  return import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+};
+
 const api = axios.create({
-  baseURL: "https://orcamento-coral.vercel.app/api/"
+  baseURL: getBaseURL(),
 });
 
 // ============= INTERCEPTORES =============

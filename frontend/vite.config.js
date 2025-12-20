@@ -10,7 +10,8 @@ export default defineConfig({
     cors: true,
   },
   build: {
-    outDir: 'dist',
+    outDir: '../backend/dist',
+    emptyOutDir: true,
     sourcemap: false,
     minify: 'esbuild',
     chunkSizeWarningLimit: 1000,

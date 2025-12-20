@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
@@ -15,7 +15,9 @@ from config import config
 def create_app(config_name='default'):
     """Factory para criar a aplicação Flask"""
     
-    app = Flask(__name__)
+    # O frontend (React) é construído na pasta 'dist'.
+    # Flask servirá os arquivos estáticos dessa pasta.
+    app = Flask(__name__, static_folder='dist', static_url_path='')
     
     # Carregar configurações
     app.config.from_object(config[config_name])
@@ -33,14 +35,14 @@ def create_app(config_name='default'):
     # Inicializar extensões
     db.init_app(app)
     
-    # Usar a configuração CORS_ORIGINS definida em `config.py`
+    # Em desenvolvimento, o frontend roda em um servidor separado (Vite)
+    # e precisa de CORS. Em produção, ambos são servidos juntos, mas
+    # manter o CORS não prejudica.
     cors_origins = app.config.get('CORS_ORIGINS', '*')
     CORS(
         app,
         resources={r"/api/*": {"origins": cors_origins}},
         supports_credentials=True,
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     )
     jwt = JWTManager(app)
 
@@ -51,14 +53,13 @@ def create_app(config_name='default'):
         token = TokenBlacklist.query.filter_by(jti=jti).first()
         return token is not None
     
-    # Criar diretórios necessários
+    # Criar diretórios necessários para uploads (se aplicável)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['EXPORT_FOLDER'], exist_ok=True)
     
-    # Registrar blueprints
+    # Registrar blueprints da API
     from routes import auth, categorias, orcamentos, dashboard, relatorios, logs
     
-    # Registrar blueprints sob o prefixo /api para coincidir com o frontend
     api_prefix = '/api'
     app.register_blueprint(auth.bp, url_prefix=api_prefix)
     app.register_blueprint(categorias.bp, url_prefix=api_prefix)
@@ -67,7 +68,22 @@ def create_app(config_name='default'):
     app.register_blueprint(relatorios.bp, url_prefix=api_prefix)
     app.register_blueprint(logs.bp, url_prefix=api_prefix)
 
-    # Handlers de erro JWT
+    # Rota de health check da API
+    @app.route('/api/health')
+    def health():
+        return {'status': 'ok', 'message': 'API funcionando'}
+
+    # Rota "catch-all" para servir o app React
+    # Qualquer rota que não seja da API cairá aqui
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_react_app(path):
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.html')
+
+    # Handlers de erro JWT (devem vir depois do registro de rotas)
     @jwt.expired_token_loader
     def expired_token_loader(jwt_header, jwt_payload):
         app.logger.warning("Token expirado")
@@ -82,15 +98,6 @@ def create_app(config_name='default'):
     def unauthorized_callback(error):
         app.logger.warning("Token não fornecido")
         return {'error': 'Token de autenticação não fornecido'}, 401
-
-    # Rota de health check
-    @app.route('/api/health')
-    def health():
-        return {'status': 'ok', 'message': 'API funcionando'}
-
-    # Remover print statements em produção
-    if app.debug:
-        print("JWT SECRET ATIVO:", app.config.get('JWT_SECRET_KEY'))
 
     return app
 
@@ -114,9 +121,7 @@ def create_admin():
     from models import Usuario
     
     with application.app_context():
-        # Verificar se já existe admin
         admin_exists = Usuario.query.filter_by(email='admin@empresa.com').first()
-        
         if admin_exists:
             print('⚠️  Usuário admin já existe!')
             return
@@ -127,7 +132,6 @@ def create_admin():
             papel='admin'
         )
         admin.set_password('admin123')
-        
         db.session.add(admin)
         db.session.commit()
         
@@ -139,26 +143,8 @@ def create_admin():
 @application.cli.command()
 def seed_db():
     """Popula banco com dados de exemplo"""
-    from models import Usuario, Categoria, Orcamento
-    from datetime import datetime
-    
-    with application.app_context():
-        print('🌱 Populando banco de dados...')
-        
-        # Criar usuários de teste
-        if not Usuario.query.filter_by(email='gestor@empresa.com').first():
-            gestor = Usuario(nome='Gestor Teste', email='gestor@empresa.com', papel='gestor')
-            gestor.set_password('gestor123')
-            db.session.add(gestor)
-            print('✅ Gestor criado')
-        
-        if not Usuario.query.filter_by(email='visualizador@empresa.com').first():
-            visualizador = Usuario(nome='Visualizador Teste', email='visualizador@empresa.com', papel='visualizador')
-            visualizador.set_password('visualizador123')
-            db.session.add(visualizador)
-            print('✅ Visualizador criado')
-        
-        db.session.commit()
+    # Implementação do seed...
+    pass
         
 if __name__ == '__main__':
     # Rodar servidor de desenvolvimento

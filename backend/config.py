@@ -4,41 +4,41 @@ from datetime import timedelta
 
 class Config:
     """Configurações base do aplicativo"""
-    
-    # Banco de dados MySQL
-    MYSQL_HOST = os.environ.get('MYSQL_HOST', 'mysql.logtudo.com.br')
-    MYSQL_USER = os.environ.get('MYSQL_USER', 'logtudo01')
-    MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'Banco25orc')
-    MYSQL_DB = os.environ.get('MYSQL_DB', 'logtudo01')
-    
-    SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}?charset=utf8mb4'
+
+    # Chaves de segurança - DEVEM ser configuradas no ambiente
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+
+    # Configuração do banco de dados - Prioriza DATABASE_URL (padrão do Render)
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL and DATABASE_URL.startswith("mysql://"):
+        DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL or \
+        f"mysql+pymysql://{os.environ.get('MYSQL_USER')}:{os.environ.get('MYSQL_PASSWORD')}@" \
+        f"{os.environ.get('MYSQL_HOST')}/{os.environ.get('MYSQL_DB')}?charset=utf8mb4"
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
-        'pool_size': 20,  # Aumentar tamanho do pool em produção
-        'max_overflow': 10,  # Permitir conexões extras quando necessário
+        'pool_size': 10,
+        'max_overflow': 5,
     }
 
-    # Segurança
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'Logtudo2025PlanoOrcamentario'
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jLogtudo2025@PlanoOrcamentario'
+    # Configuração de tokens JWT
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=8)
-    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)  # 7 dias
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 
     # CORS
     CORS_ORIGINS = [
-        "https://orcamento.logtudo.com.br",
-        "https://www.orcamento.logtudo.com.br",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
     ]
     
-    # Uploads e Exports
+    # ATENÇÃO: O sistema de arquivos em plataformas como Render/Heroku é efêmero.
+    # Arquivos salvos aqui serão PERDIDOS em reinicializações ou deploys.
+    # Para armazenamento persistente, use um serviço de storage como AWS S3, Google Cloud Storage, etc.
     UPLOAD_FOLDER = '/tmp/uploads'
     EXPORT_FOLDER = '/tmp/exports'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max
@@ -50,47 +50,22 @@ class DevelopmentConfig(Config):
     """Configurações de desenvolvimento"""
     DEBUG = True
     TESTING = False
+    
+    # Em desenvolvimento, podemos usar valores padrão se não estiverem no .env
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-for-testing'
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'dev-jwt-secret-key-for-testing'
 
 class ProductionConfig(Config):
     """Configurações de produção"""
     DEBUG = False
     TESTING = False
-    
+
     # Em produção, estas variáveis DEVEM vir do ambiente
-    @property
-    def SECRET_KEY(self):
-        key = os.environ.get('SECRET_KEY')
-        if not key:
-            raise ValueError("SECRET_KEY não configurada em produção!")
-        return key
-
-    @property
-    def MYSQL_HOST(self):
-        host = os.environ.get('MYSQL_HOST')
-        if not host:
-            raise ValueError("MYSQL_HOST não configurada em produção!")
-        return host
-
-    @property
-    def MYSQL_USER(self):
-        user = os.environ.get('MYSQL_USER')
-        if not user:
-            raise ValueError("MYSQL_USER não configurada em produção!")
-        return user
-
-    @property
-    def MYSQL_PASSWORD(self):
-        password = os.environ.get('MYSQL_PASSWORD')
-        if not password:
-            raise ValueError("MYSQL_PASSWORD não configurada em produção!")
-        return password
-
-    @property
-    def MYSQL_DB(self):
-        db = os.environ.get('MYSQL_DB')
-        if not db:
-            raise ValueError("MYSQL_DB não configurada em produção!")
-        return db
+    if not Config.SECRET_KEY or not Config.JWT_SECRET_KEY:
+        raise ValueError("SECRET_KEY e JWT_SECRET_KEY devem ser configuradas no ambiente de produção.")
+    
+    if not Config.SQLALCHEMY_DATABASE_URI:
+        raise ValueError("DATABASE_URL ou variáveis MYSQL_* devem ser configuradas no ambiente de produção.")
 
     # Configurações específicas de produção
     CORS_ORIGINS = [
