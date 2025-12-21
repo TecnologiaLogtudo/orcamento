@@ -28,6 +28,15 @@ def list_orcamentos():
         if ano:
             query = query.filter(Orcamento.ano == ano)
         if mes:
+            try:
+                # Check if mes is a number string (e.g., '1', '12')
+                mes_num = int(mes)
+                if 1 <= mes_num <= 12:
+                    # Convert number to month name
+                    mes = MESES[mes_num - 1]
+            except (ValueError, TypeError):
+                # It's already a name or something else, use as is
+                pass
             query = query.filter(Orcamento.mes == mes)
         if status:
             query = query.filter(Orcamento.status == status)
@@ -674,11 +683,14 @@ def get_submissions():
                 orcamento_ids_em_logs.add(orc.get('id_orcamento'))
             
             # Agrupar por master, uf, categoria para exibição
+            primeiro_orcamento = orcamentos_submetidos[0] if orcamentos_submetidos else {}
             submission = {
                 'id_log': log.id_log,
                 'data': log.timestamp.isoformat() if log.timestamp else None,
                 'admin_usuario': log.usuario.nome if log.usuario else 'Desconhecido',
                 'total_submetidos': detalhes.get('total_submetidos', 0),
+                'ano': primeiro_orcamento.get('ano'),
+                'mes': primeiro_orcamento.get('mes'),
                 'orcamentos': orcamentos_submetidos,
                 # Agrupar únicos para filtro rápido
                 'masters': list(set([o.get('master') for o in orcamentos_submetidos if o.get('master')])),
@@ -711,11 +723,14 @@ def get_submissions():
         
         # Se houver orçamentos sem log, criar uma submissão virtual
         if orcamentos_sem_log:
+            primeiro_orcamento_virtual = orcamentos_sem_log[0] if orcamentos_sem_log else {}
             virtual_submission = {
                 'id_log': None,  # Sem log real
                 'data': None,
                 'admin_usuario': 'Importado',
                 'total_submetidos': len(orcamentos_sem_log),
+                'ano': primeiro_orcamento_virtual.get('ano'),
+                'mes': primeiro_orcamento_virtual.get('mes'),
                 'orcamentos': orcamentos_sem_log,
                 'masters': list(set([o.get('master') for o in orcamentos_sem_log if o.get('master')])),
                 'ufs': list(set([o.get('uf') for o in orcamentos_sem_log if o.get('uf')])),

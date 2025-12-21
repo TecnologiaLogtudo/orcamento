@@ -81,8 +81,19 @@ class ProductionConfig(Config):
         'pool_timeout': 30,  # Timeout ao obter conexão
     }
 
+class TestingConfig(Config):
+    """Configurações de teste"""
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_ENGINE_OPTIONS = {}
+    # Usar chaves de teste para não depender do ambiente
+    SECRET_KEY = 'test-secret-key'
+    JWT_SECRET_KEY = 'test-jwt-secret-key'
+
+
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
+    'testing': TestingConfig,
     'default': DevelopmentConfig
 }
