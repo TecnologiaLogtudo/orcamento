@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom'; // Removed useNavigate
 import { orcamentosAPI } from '../services/api';
 import { categoriasAPI } from '../services/api';
 import { Filter, RotateCcw, Save, Loader2, Send, Check, X } from 'lucide-react';
@@ -9,35 +9,35 @@ import AlertModal from './AlertModal';
 import PromptModal from './PromptModal';
 
 export default function Lancamentos() {
-  const { user, canEdit, canApprove, isAdmin } = useAuth();
-    const location = useLocation();
-    const navigate = useNavigate();
-    const navAppliedRef = useRef(false);
-    const [notification, setNotification] = useState(null); // { type: 'success'|'error'|'info', message }
+  const { canEdit, canApprove, isAdmin } = useAuth(); // Removed user
+  const location = useLocation();
+  // const navigate = useNavigate(); // Removed navigate
+  const navAppliedRef = useRef(false);
+  const [notification, setNotification] = useState(null); // { type: 'success'|'error'|'info', message }
 
-    // Modal States
-    const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '' });
-    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
-    const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+  // Modal States
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-    const showAlert = (title, message) => setAlertModal({ isOpen: true, title, message });
-    const showConfirm = (title, message, onConfirm) => setConfirmModal({ isOpen: true, title, message, onConfirm });
-    const showPrompt = (title, message, onConfirm) => setPromptModal({ isOpen: true, title, message, onConfirm });
+  const showAlert = (title, message) => setAlertModal({ isOpen: true, title, message });
+  const showConfirm = (title, message, onConfirm) => setConfirmModal({ isOpen: true, title, message, onConfirm });
+  const showPrompt = (title, message, onConfirm) => setPromptModal({ isOpen: true, title, message, onConfirm });
 
-    const closeModal = () => {
-      setAlertModal({ ...alertModal, isOpen: false });
-      setConfirmModal({ ...confirmModal, isOpen: false });
-      setPromptModal({ ...promptModal, isOpen: false });
-    };
+  const closeModal = () => {
+    setAlertModal({ ...alertModal, isOpen: false });
+    setConfirmModal({ ...confirmModal, isOpen: false });
+    setPromptModal({ ...promptModal, isOpen: false });
+  };
 
-    const showNotification = (type, message, timeout = 4000) => {
-      setNotification({ type, message });
-      if (timeout > 0) {
-        setTimeout(() => setNotification(null), timeout);
-      }
-    };
+  const showNotification = (type, message, timeout = 4000) => {
+    setNotification({ type, message });
+    if (timeout > 0) {
+      setTimeout(() => setNotification(null), timeout);
+    }
+  };
   const [orcamentos, setOrcamentos] = useState([]);
-  const [originalOrcamentos, setOriginalOrcamentos] = useState([]);
+  // const [originalOrcamentos, setOriginalOrcamentos] = useState([]); // Removed unused state
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modifiedIds, setModifiedIds] = useState(new Set());
@@ -63,77 +63,6 @@ export default function Lancamentos() {
       { valor: 10, nome: 'Outubro' }, { valor: 11, nome: 'Novembro' }, { valor: 12, nome: 'Dezembro' }
     ]
   });
-
-useEffect(() => {
-    const loadInitialData = async () => {
-        const stateFilters = location?.state;
-        if (stateFilters && !navAppliedRef.current) {
-          try {
-            // Combina os filtros do estado da navegação com os padrões, 
-            // garantindo que ano/mês tenham um fallback se não forem fornecidos.
-            const newFilters = {
-              ano: new Date().getFullYear(),
-              mes: new Date().getMonth() + 1,
-              master: '',
-              uf: '',
-              categoria: '',
-              status: '',
-              ...stateFilters,
-            };
-            setFiltros(newFilters);
-            navAppliedRef.current = true;
-            
-            // Limpar history.state diretamente para evitar reaplicação em re-renderizações
-            try {
-              const url = window.location.pathname + window.location.search + window.location.hash;
-              window.history.replaceState(null, document.title, url);
-            } catch (err) {
-              console.error('Falha ao limpar history.state via replaceState:', err);
-            }
-            
-            // Carregar imediatamente com os filtros aplicados para reduzir janela de inconsistência
-            try {
-              loadOrcamentos(newFilters);
-            } catch (err) {
-              console.error('Erro ao disparar carga imediata de orçamentos:', err);
-            }
-          } catch (error) {
-            console.error('Erro ao aplicar filtros do location.state:', error);
-          }
-        }
-
-      try {
-        const data = await orcamentosAPI.getFiltros();
-        const currentYear = new Date().getFullYear();
-        const startYear = 2026;
-        // Janela deslizante: sempre windowLength anos começando em max(startYear, currentYear)
-        const windowLength = 6; // exibe 6 anos consecutivos
-        const windowStart = Math.max(startYear, currentYear);
-        const futureYears = Array.from({ length: windowLength }, (_, i) => windowStart + i);
-        const years = Array.from(new Set([currentYear, ...(data.anos || []), ...futureYears])).sort((a, b) => a - b);
-
-        setOpcoesFiltro(prev => ({
-          ...prev,
-          ...data,
-          anos: years,
-          categorias: data.categorias || [],
-        }));
-        if (!navAppliedRef.current && years.length > 0) {
-          const defaultYear = years.includes(windowStart) ? windowStart : years[0];
-          setFiltros(prev => ({ ...prev, ano: defaultYear }));
-        }
-      } catch (error) {
-        console.error('Erro ao carregar filtros:', error);
-      }
-    };
-
-    loadInitialData();
-  }, []);
-
-  useEffect(() => {
-    loadOrcamentos();
-  }, [filtros]);
-
 
   const loadRequestIdRef = useRef(0);
 
@@ -188,7 +117,7 @@ useEffect(() => {
 
       setOrcamentos(orcamentosCompletos);
       console.log(`Lancamentos[req:${reqId}]: orçamentos carregados — total:`, orcamentosCompletos.length, 'filtros usados:', usedFiltros);
-      setOriginalOrcamentos(JSON.parse(JSON.stringify(orcamentosCompletos)));
+      // setOriginalOrcamentos(JSON.parse(JSON.stringify(orcamentosCompletos))); // Removed unused state
       setModifiedIds(new Set());
       setSelectedIds(new Set());
     } catch (error) {
@@ -197,7 +126,80 @@ useEffect(() => {
       // Somente limpar loading se esta requisição for a última
       if (reqId === loadRequestIdRef.current) setLoading(false);
     }
-  }, [filtros]); // Dependência do objeto de filtros completo
+  }, [
+    filtros,
+    setLoading,
+    setOrcamentos,
+    setModifiedIds,
+    setSelectedIds,
+    // opcoesFiltro.meses // Removed unnecessary dependency
+  ]);
+
+  const loadInitialData = useCallback(async () => {
+    const stateFilters = location?.state;
+    if (stateFilters && !navAppliedRef.current) {
+      try {
+        const newFilters = {
+          ano: new Date().getFullYear(),
+          mes: new Date().getMonth() + 1,
+          master: '',
+          uf: '',
+          categoria: '',
+          status: '',
+          ...stateFilters,
+        };
+        setFiltros(newFilters);
+        navAppliedRef.current = true;
+        
+        try {
+          const url = window.location.pathname + window.location.search + window.location.hash;
+          window.history.replaceState(null, document.title, url);
+        } catch (err) {
+          console.error('Falha ao limpar history.state via replaceState:', err);
+        }
+        
+        try {
+          loadOrcamentos(newFilters);
+        } catch (err) {
+          console.error('Erro ao disparar carga imediata de orçamentos:', err);
+        }
+      } catch (error) {
+        console.error('Erro ao aplicar filtros do location.state:', error);
+      }
+    }
+
+    try {
+      const data = await orcamentosAPI.getFiltros();
+      const currentYear = new Date().getFullYear();
+      const startYear = 2026;
+      const windowLength = 6;
+      const windowStart = Math.max(startYear, currentYear);
+      const futureYears = Array.from({ length: windowLength }, (_, i) => windowStart + i);
+      const years = Array.from(new Set([currentYear, ...(data.anos || []), ...futureYears])).sort((a, b) => a - b);
+
+      setOpcoesFiltro(prev => ({
+        ...prev,
+        ...data,
+        anos: years,
+        categorias: data.categorias || [],
+      }));
+      if (!navAppliedRef.current && years.length > 0) {
+        const defaultYear = years.includes(windowStart) ? windowStart : years[0];
+        setFiltros(prev => ({ ...prev, ano: defaultYear }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar filtros:', error);
+    }
+  }, [location?.state, loadOrcamentos, setFiltros, setOpcoesFiltro]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    loadOrcamentos();
+  }, [filtros, loadOrcamentos]);
+
 
   // Log de todas as alterações em `filtros` para diagnóstico
   useEffect(() => {
@@ -343,7 +345,7 @@ useEffect(() => {
     try {
       // Passo 1: Salvar as alterações
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, dif, ...rest } = orc;
+        const { ...rest } = orc; // Removed explicit destructuring of categoria and dif
         return {
           ...rest,
           mes: getMonthName(rest.mes),
@@ -384,11 +386,11 @@ useEffect(() => {
     try {
       // Passo 1: Salvar as alterações (sem mudar o status aqui)
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, dif, status, ...rest } = orc; // O status não é enviado, será definido pelo backend
+        const { ...rest } = orc; // Removed explicit destructuring of categoria, dif, and status
         return {
           ...rest,
           mes: getMonthName(rest.mes),
-          id_orcamento: rest.id_orcamento // Orçamentos reprovados já têm ID
+          id_orcamento: rest.id_orcamento // Approved budgets already have an ID
         };
       });
 
@@ -424,7 +426,7 @@ useEffect(() => {
     setSaving(true);
     try {
       const orcamentosPayload = modifiedOrcamentos.map(orc => {
-        const { categoria, dif, ...rest } = orc;
+        const { ...rest } = orc; // Removed explicit destructuring of categoria and dif
         return {
           ...rest,
           mes: getMonthName(rest.mes),

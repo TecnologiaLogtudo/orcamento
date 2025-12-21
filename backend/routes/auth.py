@@ -236,3 +236,44 @@ def logout():
     db.session.add(TokenBlacklist(jti=jti))
     db.session.commit()
     return {"msg": "Logout realizado com sucesso"}, 200
+
+@bp.route('/change_password', methods=['PUT'])
+@jwt_required()
+def change_password():
+    """Permite ao usuário logado alterar sua própria senha"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+
+        if not current_user:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+        
+        data = request.get_json()
+        old_password = data.get('old_password')
+        new_password = data.get('new_password')
+
+        if not old_password or not new_password:
+            return jsonify({'error': 'Senha antiga e nova senha são obrigatórias'}), 400
+        
+        if not current_user.check_password(old_password):
+            return jsonify({'error': 'Senha antiga incorreta'}), 401
+        
+        current_user.set_password(new_password)
+        db.session.commit()
+
+        # Registrar no log
+        log = Log(
+            id_usuario=current_user.id_usuario,
+            acao='Alteração de senha',
+            tabela_afetada='usuarios',
+            id_registro=current_user.id_usuario,
+            detalhes={'usuario': current_user.to_dict()}
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'message': 'Senha alterada com sucesso'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

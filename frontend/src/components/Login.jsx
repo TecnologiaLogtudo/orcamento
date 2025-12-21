@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api'; // Importar o objeto authAPI
+// import { authAPI } from '../services/api'; // Removed unused import
 
 export default function Login() {
   const navigate = useNavigate();

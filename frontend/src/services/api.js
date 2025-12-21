@@ -68,11 +68,23 @@ export const authAPI = {
     return response.data;
   },
 
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    delete api.defaults.headers.common['Authorization'];
-    window.location.href = '/login';
+  logout: async () => { // Changed to async to await the API call if needed
+    try {
+      await api.post('/logout'); // Call backend logout endpoint
+    } catch (error) {
+      console.error("Error during logout API call:", error);
+      // Even if API call fails, clear local storage
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      delete api.defaults.headers.common['Authorization'];
+      window.location.href = '/login';
+    }
+  },
+
+  changePassword: async (old_password, new_password) => {
+    const response = await api.put('/change_password', { old_password, new_password });
+    return response.data;
   },
 };
 

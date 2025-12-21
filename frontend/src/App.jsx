@@ -9,6 +9,7 @@ import Rejeicoes from './components/Rejeicoes';
 import Relatorios from './components/Relatorios';
 import Usuarios from './components/Usuarios';
 import Logs from './components/Logs';
+import ChangePassword from './components/ChangePassword'; // Import ChangePassword
 import Layout from './components/Layout';
 
 // Componente para proteger rotas
@@ -115,15 +116,15 @@ function AppRoutes() {
           </RestrictedRoute>
         } />
         
-                <Route path="logs" element={
-                  <RestrictedRoute allowedRoles={['admin']}>
-                    <Logs />
-                  </RestrictedRoute>
-                } />
-      </Route>
-
-      {/* Rota 404 */}
-      <Route
+                        <Route path="logs" element={
+                          <RestrictedRoute allowedRoles={['admin']}>
+                            <Logs />
+                          </RestrictedRoute>
+                        } />
+                        <Route path="change-password" element={<ChangePassword />} />
+                      </Route>
+                
+                      {/* Rota 404 */}      <Route
         path="*"
         element={
           <div className="min-h-screen flex items-center justify-center bg-gray-50">

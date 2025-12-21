@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { dashboardAPI } from '../services/api';
 import { 
   TrendingUp, 
   TrendingDown, 
   DollarSign, 
   AlertCircle,
-  BarChart3,
-  Calendar
+  BarChart3
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -57,18 +56,7 @@ export default function Dashboard() {
     centros_de_custo: []
   });
 
-  useEffect(() => {
-    // Carrega os filtros disponíveis (anos, categorias, UFs, grupos) uma vez
-    loadFiltrosDisponiveis();
-  }, []);
-
-  useEffect(() => {
-    // Recarrega os dados do dashboard sempre que os filtros mudarem
-    loadDashboard();
-    sessionStorage.setItem('dashboardFiltros', JSON.stringify(filtros));
-  }, [filtros]); // Depende apenas dos filtros
-
-  const loadFiltrosDisponiveis = async () => {
+  const loadFiltrosDisponiveis = useCallback(async () => {
     try {
       const data = await dashboardAPI.getFiltros();
       setFiltrosDisponiveis(data);
@@ -86,9 +74,9 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Erro ao carregar filtros:', error);
     }
-  };
+  }, [filtros.ano, setFiltros, setTempFiltros]); // Dependências: filtros.ano e os setters
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
       const [dashData, kpisData, comparativoData, distCatData, distCentroCustoData] = await Promise.all([
@@ -108,27 +96,36 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros, setLoading, setDashboardData, setKpis, setComparativo, setDistribuicaoCategoria, setDistribuicaoCentroDeCusto]); // Dependências: filtros e os setters
 
-  const handleFilterChange = (key, value) => {
+  useEffect(() => {
+    loadFiltrosDisponiveis();
+  }, [loadFiltrosDisponiveis]);
+
+  useEffect(() => {
+    loadDashboard();
+    sessionStorage.setItem('dashboardFiltros', JSON.stringify(filtros));
+  }, [loadDashboard, filtros]);
+
+  const handleFilterChange = useCallback((key, value) => {
     setTempFiltros(prev => ({
       ...prev,
       [key]: value || undefined
     }));
-  };
+  }, [setTempFiltros]);
 
-  const handleApplyFilters = () => {
+  const handleApplyFilters = useCallback(() => {
     setFiltros(tempFiltros);
-  };
+  }, [setFiltros, tempFiltros]);
 
-  const handleLimparFiltros = () => {
+  const handleLimparFiltros = useCallback(() => {
     const defaultFilters = {
       ano: filtrosDisponiveis.anos?.[0] || new Date().getFullYear()
     };
     setTempFiltros(defaultFilters);
     setFiltros(defaultFilters);
     sessionStorage.removeItem('dashboardFiltros');
-  };
+  }, [filtrosDisponiveis.anos, setTempFiltros, setFiltros]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {

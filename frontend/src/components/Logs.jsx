@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { logsAPI } from '../services/api';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -9,22 +9,22 @@ export default function Logs() {
   const [page, setPage] = useState(1);
   const [expandedLog, setExpandedLog] = useState(null);
 
-  useEffect(() => {
-    loadLogs();
-  }, [page]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       const data = await logsAPI.list({ page, per_page: 20 });
       setLogs(data.logs);
       setPagination(data.pagination);
     } catch (error) {
-      alert('Erro ao carregar logs');
+      alert('Erro ao carregar logs: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, setLoading, setLogs, setPagination]); // Dependencies for useCallback
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleString('pt-BR');

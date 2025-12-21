@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { orcamentosAPI } from '../services/api';
-import { ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function RejectionsLog({ onNavigateToLancamentos }) {
   const [rejections, setRejections] = useState([]);

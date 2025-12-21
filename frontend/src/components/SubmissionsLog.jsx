@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { orcamentosAPI } from '../services/api';
-import { ArrowRight, Loader2, Calendar } from 'lucide-react';
+import { ArrowRight, Calendar } from 'lucide-react';
 
 export default function SubmissionsLog({ onNavigateToLancamentos }) {
   const [submissions, setSubmissions] = useState([]);
