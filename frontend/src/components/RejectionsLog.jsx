@@ -22,10 +22,20 @@ export default function RejectionsLog({ onNavigateToLancamentos }) {
     }
   };
 
+  const getMonthNumber = (monthName) => {
+    if (!monthName) return new Date().getMonth() + 1;
+    const monthMap = {
+      'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
+      'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12
+    };
+    return monthMap[monthName];
+  };
+
   const handleNavigate = (rejection) => {
     const filters = {
       status: 'reprovado',
-      ano: '',
+      ano: rejection.ano || new Date().getFullYear(),
+      mes: getMonthNumber(rejection.mes),
     };
     if (onNavigateToLancamentos) {
       onNavigateToLancamentos(filters);

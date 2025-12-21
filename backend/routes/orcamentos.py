@@ -765,6 +765,7 @@ def get_rejections():
             detalhes = log.detalhes or {}
             orcamentos_reprovados = detalhes.get('orcamentos_reprovados', [])
             
+            primeiro_orcamento_reprovado = orcamentos_reprovados[0] if orcamentos_reprovados else {}
             rejection = {
                 'id_log': log.id_log,
                 'data': log.timestamp.isoformat() if log.timestamp else None,
@@ -772,6 +773,8 @@ def get_rejections():
                 'total_reprovados': detalhes.get('total_reprovados', 0),
                 'motivo': detalhes.get('motivo', 'Sem motivo especificado'),
                 'tipo': 'lote',
+                'ano': primeiro_orcamento_reprovado.get('ano'),
+                'mes': primeiro_orcamento_reprovado.get('mes'),
                 'orcamentos': orcamentos_reprovados,
                 'masters': list(set([o.get('master') for o in orcamentos_reprovados if o.get('master')])),
                 'ufs': list(set([o.get('uf') for o in orcamentos_reprovados if o.get('uf')])),
@@ -806,6 +809,8 @@ def get_rejections():
                     'masters': set(),
                     'ufs': set(),
                     'categorias': set(),
+                    'ano': None, # Será preenchido abaixo
+                    'mes': None, # Será preenchido abaixo
                 }
             
             if orcamento:
@@ -825,6 +830,12 @@ def get_rejections():
                     reprovacoes_por_gestor[key]['masters'].add(categoria.master)
                     reprovacoes_por_gestor[key]['ufs'].add(categoria.uf)
                     reprovacoes_por_gestor[key]['categorias'].add(categoria.categoria)
+                
+                # Preencher ano e mês do grupo com o primeiro orçamento encontrado
+                if not reprovacoes_por_gestor[key]['ano'] and orc_detail.get('ano'):
+                    reprovacoes_por_gestor[key]['ano'] = orc_detail.get('ano')
+                if not reprovacoes_por_gestor[key]['mes'] and orc_detail.get('mes'):
+                    reprovacoes_por_gestor[key]['mes'] = orc_detail.get('mes')
 
         # Converter sets para lists e calcular total
         for rejection_group in reprovacoes_por_gestor.values():
