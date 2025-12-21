@@ -73,15 +73,12 @@ def create_app(config_name='default'):
     def health():
         return {'status': 'ok', 'message': 'API funcionando'}
 
-    # Rota "catch-all" para servir o app React
-    # Qualquer rota que não seja da API cairá aqui
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def serve_react_app(path):
-        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-            return send_from_directory(app.static_folder, path)
-        else:
-            return send_from_directory(app.static_folder, 'index.html')
+    # Handler de erro 404 para servir o app React
+    # Qualquer rota não encontrada pela API será tratada aqui, servindo o index.html
+    @app.errorhandler(404)
+    def not_found(e):
+        return send_from_directory(app.static_folder, 'index.html')
+
 
     # Handlers de erro JWT (devem vir depois do registro de rotas)
     @jwt.expired_token_loader
