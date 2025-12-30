@@ -5,6 +5,7 @@ from sqlalchemy import event, text, TypeDecorator, Index
 from sqlalchemy.orm import attributes
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
+import pytz
 
 db = SQLAlchemy()
 
@@ -171,6 +172,10 @@ class Log(db.Model):
     
     def to_dict(self):
         """Converte para dicionário"""
+        # Converte o timestamp para o fuso horário de São Paulo
+        sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+        local_timestamp = self.timestamp.replace(tzinfo=pytz.utc).astimezone(sao_paulo_tz) if self.timestamp else None
+        
         return {
             'id_log': self.id_log,
             'id_usuario': self.id_usuario,
@@ -178,7 +183,7 @@ class Log(db.Model):
             'acao': self.acao,
             'tabela_afetada': self.tabela_afetada,
             'id_registro': self.id_registro,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': local_timestamp.isoformat() if local_timestamp else None,
             'detalhes': self.detalhes
         }
 

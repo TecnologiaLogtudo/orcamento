@@ -158,11 +158,7 @@ export default function Lancamentos() {
           console.error('Falha ao limpar history.state via replaceState:', err);
         }
         
-        try {
-          loadOrcamentos(newFilters);
-        } catch (err) {
-          console.error('Erro ao disparar carga imediata de orçamentos:', err);
-        }
+        // Carga de orçamentos removida daqui, será tratada pelo useEffect de filtros
       } catch (error) {
         console.error('Erro ao aplicar filtros do location.state:', error);
       }
@@ -190,7 +186,7 @@ export default function Lancamentos() {
     } catch (error) {
       console.error('Erro ao carregar filtros:', error);
     }
-  }, [location?.state, loadOrcamentos, setFiltros, setOpcoesFiltro]);
+  }, [location?.state, setFiltros, setOpcoesFiltro]);
 
   useEffect(() => {
     loadInitialData();
