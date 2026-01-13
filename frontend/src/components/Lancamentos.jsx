@@ -979,7 +979,7 @@ export default function Lancamentos() {
                     <option value="">Selecione uma categoria...</option>
                     {batchCategorias.map(cat => (
                       <option key={cat.id_categoria} value={cat.id_categoria}>
-                        {cat.categoria} - {cat.master} ({cat.uf})
+                        {cat.master} - {cat.grupo} ({cat.uf})
                       </option>
                     ))}
                   </select>
