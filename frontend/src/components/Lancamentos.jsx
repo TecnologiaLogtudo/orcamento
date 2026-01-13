@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom'; // Removed useNavigate
 import { orcamentosAPI } from '../services/api';
 import { categoriasAPI } from '../services/api';
-import { Filter, RotateCcw, Save, Loader2, Send, Check, X, Trash2 } from 'lucide-react';
+import { Filter, RotateCcw, Save, Loader2, Send, Check, X, Trash2, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
@@ -62,6 +62,15 @@ export default function Lancamentos() {
       { valor: 7, nome: 'Julho' }, { valor: 8, nome: 'Agosto' }, { valor: 9, nome: 'Setembro' },
       { valor: 10, nome: 'Outubro' }, { valor: 11, nome: 'Novembro' }, { valor: 12, nome: 'Dezembro' }
     ]
+  });
+  
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchCategorias, setBatchCategorias] = useState([]);
+  const [batchData, setBatchData] = useState({
+    id_categoria: '',
+    ano: new Date().getFullYear(),
+    valor: '',
+    meses: []
   });
 
   const loadRequestIdRef = useRef(0);
@@ -584,6 +593,63 @@ export default function Lancamentos() {
     return badges[status] || badges.rascunho;
   };
 
+  const handleOpenBatchModal = async () => {
+    setIsBatchModalOpen(true);
+    // Reset form
+    setBatchData({
+      id_categoria: '',
+      ano: filtros.ano || new Date().getFullYear(),
+      valor: '',
+      meses: []
+    });
+    
+    // Carregar todas as categorias para o select
+    try {
+      const cats = await categoriasAPI.list();
+      setBatchCategorias(cats);
+    } catch (error) {
+      showNotification('error', 'Erro ao carregar lista de categorias.');
+    }
+  };
+
+  const handleBatchSubmit = async () => {
+    if (!batchData.id_categoria || !batchData.valor || batchData.meses.length === 0) {
+      showAlert('Campos Obrigatórios', 'Selecione a categoria, o valor e pelo menos um mês.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = batchData.meses.map(mes => ({
+        id_categoria: parseInt(batchData.id_categoria),
+        mes: mes, // Backend aceita número ou nome, mas número é mais seguro aqui se o backend converter
+        ano: parseInt(batchData.ano),
+        orcado: parseFloat(batchData.valor),
+        status: 'rascunho' // Novos lançamentos entram como rascunho
+      }));
+
+      await orcamentosAPI.batchUpdate(payload);
+      
+      showNotification('success', `${payload.length} orçamentos lançados com sucesso!`);
+      setIsBatchModalOpen(false);
+      loadOrcamentos(); // Recarregar grid
+    } catch (error) {
+      showNotification('error', 'Erro ao realizar lançamento múltiplo: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleBatchMonth = (mesValor) => {
+    setBatchData(prev => {
+      const newMeses = prev.meses.includes(mesValor)
+        ? prev.meses.filter(m => m !== mesValor)
+        : [...prev.meses, mesValor].sort((a, b) => a - b);
+      return { ...prev, meses: newMeses };
+    });
+  };
+
+
   const resumo = useMemo(() => {
     return orcamentos.reduce((acc, orc) => {
       return {
@@ -625,13 +691,24 @@ export default function Lancamentos() {
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Lançamentos</h1>
-          <button
-            onClick={handleLimparFiltros}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <RotateCcw size={16} />
-            Limpar Filtros
-          </button>
+          <div className="flex gap-2">
+            {isAdmin() && (
+              <button
+                onClick={handleOpenBatchModal}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50"
+              >
+                <Calendar size={16} />
+                Lançamento Múltiplo
+              </button>
+            )}
+            <button
+              onClick={handleLimparFiltros}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <RotateCcw size={16} />
+              Limpar Filtros
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -878,6 +955,102 @@ export default function Lancamentos() {
       </div>
     )}
   </div>
+
+      {/* Modal de Lançamento Múltiplo */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Lançamento Múltiplo de Orçamento</h3>
+              <button onClick={() => setIsBatchModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <select
+                    value={batchData.id_categoria}
+                    onChange={(e) => setBatchData({...batchData, id_categoria: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">Selecione uma categoria...</option>
+                    {batchCategorias.map(cat => (
+                      <option key={cat.id_categoria} value={cat.id_categoria}>
+                        {cat.categoria} - {cat.master} ({cat.uf})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                  <select
+                    value={batchData.ano}
+                    onChange={(e) => setBatchData({...batchData, ano: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    {opcoesFiltro.anos?.map(y => <option key={`batch-ano-${y}`} value={y}>{y}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor Orçado (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={batchData.valor}
+                    onChange={(e) => setBatchData({...batchData, valor: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Meses a Lançar</label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  {opcoesFiltro.meses.map(m => (
+                    <label key={`batch-mes-${m.valor}`} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={batchData.meses.includes(m.valor)}
+                        onChange={() => toggleBatchMonth(m.valor)}
+                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700">{m.nome}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-2 text-xs">
+                  <button onClick={() => setBatchData(prev => ({...prev, meses: opcoesFiltro.meses.map(m => m.valor)}))} className="text-indigo-600 hover:text-indigo-800">Marcar Todos</button>
+                  <span className="text-gray-300">|</span>
+                  <button onClick={() => setBatchData(prev => ({...prev, meses: []}))} className="text-gray-500 hover:text-gray-700">Desmarcar Todos</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setIsBatchModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBatchSubmit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                Lançar Orçamentos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
