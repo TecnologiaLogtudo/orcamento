@@ -638,7 +638,7 @@ def delete_orcamento(id_orcamento):
         # Registrar no log
         log = Log(
             id_usuario=current_user.id_usuario,
-            acao=f'Deletou orçamento {orcamento_data["mes"]}/{orcamento_data["ano"]}',
+            acao=f'Deletou orçamento {orcamento_data["mes"]}/{orcamento_data["ano"]} ({orcamento_data.get("status", "N/A")})',
             tabela_afetada='orcamentos',
             id_registro=id_orcamento,
             detalhes={'orcamento_deletado': orcamento_data}
