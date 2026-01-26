@@ -687,16 +687,31 @@ def get_submissions():
                 orc_id = orc.get('id_orcamento')
                 orcamento_ids_em_logs.add(orc_id)
                 
+                # Buscar objeto atual do banco para hidratação
+                db_orc = Orcamento.query.get(orc_id)
+                
                 # Hidratar com valor atual do banco se não estiver no log (logs antigos)
                 # ou para garantir valor atualizado
                 if 'orcado' not in orc:
-                    db_orc = Orcamento.query.get(orc_id)
                     if db_orc:
                         orc['orcado'] = float(db_orc.orcado)
                         orc['realizado'] = float(db_orc.realizado)
                     else:
                         orc['orcado'] = 0.0
                         orc['realizado'] = 0.0
+                
+                # Hidratar detalhes da categoria se não estiverem no log
+                if 'categoria_nome' not in orc or 'master' not in orc:
+                    if db_orc:
+                        categoria = Categoria.query.get(db_orc.id_categoria)
+                        if categoria:
+                            orc['categoria_nome'] = categoria.categoria
+                            orc['master'] = categoria.master
+                            orc['uf'] = categoria.uf
+                            orc['grupo'] = categoria.grupo
+                            # Garantir mes/ano também
+                            if 'mes' not in orc: orc['mes'] = db_orc.mes
+                            if 'ano' not in orc: orc['ano'] = db_orc.ano
             
             # Agrupar por master, uf, categoria para exibição
             primeiro_orcamento = orcamentos_submetidos[0] if orcamentos_submetidos else {}

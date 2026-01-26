@@ -145,7 +145,7 @@ export default function Submissoes() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Detalhes da Submissão</h3>
                 <p className="text-sm text-gray-500">
-                  Enviado por: {selectedSubmission.admin_usuario} em {new Date(selectedSubmission.data || Date.now()).toLocaleDateString()}
+                  Enviado por: {selectedSubmission.admin_usuario || 'Sistema'} em {new Date(selectedSubmission.data || Date.now()).toLocaleDateString()}
                 </p>
               </div>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-500">
