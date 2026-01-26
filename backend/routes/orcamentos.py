@@ -502,7 +502,9 @@ def batch_submit_orcamentos():
                         'uf': categoria.uf,
                         'grupo': categoria.grupo,
                         'mes': orcamento.mes,
-                        'ano': orcamento.ano
+                        'ano': orcamento.ano,
+                        'orcado': float(orcamento.orcado),
+                        'realizado': float(orcamento.realizado)
                     })
 
         db.session.commit()
@@ -682,7 +684,19 @@ def get_submissions():
             
             # Coletar IDs dos orçamentos neste log
             for orc in orcamentos_submetidos:
-                orcamento_ids_em_logs.add(orc.get('id_orcamento'))
+                orc_id = orc.get('id_orcamento')
+                orcamento_ids_em_logs.add(orc_id)
+                
+                # Hidratar com valor atual do banco se não estiver no log (logs antigos)
+                # ou para garantir valor atualizado
+                if 'orcado' not in orc:
+                    db_orc = Orcamento.query.get(orc_id)
+                    if db_orc:
+                        orc['orcado'] = float(db_orc.orcado)
+                        orc['realizado'] = float(db_orc.realizado)
+                    else:
+                        orc['orcado'] = 0.0
+                        orc['realizado'] = 0.0
             
             # Agrupar por master, uf, categoria para exibição
             primeiro_orcamento = orcamentos_submetidos[0] if orcamentos_submetidos else {}
@@ -720,7 +734,9 @@ def get_submissions():
                         'uf': categoria.uf,
                         'grupo': categoria.grupo,
                         'mes': orc.mes,
-                        'ano': orc.ano
+                        'ano': orc.ano,
+                        'orcado': float(orc.orcado),
+                        'realizado': float(orc.realizado)
                     })
         
         # Se houver orçamentos sem log, criar uma submissão virtual
