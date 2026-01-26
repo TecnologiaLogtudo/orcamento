@@ -22,23 +22,9 @@ export default function SubmissionsLog({ onNavigateToLancamentos }) {
     }
   };
 
-  const getMonthNumber = (monthName) => {
-    if (!monthName) return new Date().getMonth() + 1;
-    const monthMap = {
-      'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
-      'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12
-    };
-    return monthMap[monthName];
-  };
-
   const handleNavigate = (submission) => {
-    const filters = {
-      status: 'aguardando_aprovacao',
-      ano: submission.ano || new Date().getFullYear(),
-      mes: getMonthNumber(submission.mes),
-    };
     if (onNavigateToLancamentos) {
-      onNavigateToLancamentos(filters);
+      onNavigateToLancamentos(submission);
     }
   };
 
@@ -156,7 +142,7 @@ export default function SubmissionsLog({ onNavigateToLancamentos }) {
                     <button
                       onClick={() => handleNavigate(submission)}
                       className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md text-sm font-medium"
-                      title="Ir para Lançamentos com filtros aplicados"
+                      title="Ver detalhes da submissão"
                     >
                       <ArrowRight size={16} />
                       Ver

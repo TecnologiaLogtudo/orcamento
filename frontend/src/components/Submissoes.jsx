@@ -159,7 +159,9 @@ export default function Submissoes() {
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 pb-2 border-b border-gray-200">
                     <div>
                       <h4 className="font-semibold text-gray-800">{grupo.categoria_nome}</h4>
-                      <p className="text-xs text-gray-500">{grupo.master} • {grupo.uf} • {grupo.grupo}</p>
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium">Centro de Custo:</span> {grupo.master} • <span className="font-medium">UF:</span> {grupo.uf} • <span className="font-medium">Grupo:</span> {grupo.grupo}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 text-sm font-medium text-indigo-600 mt-2 sm:mt-0">
                       <Calendar size={16} />
