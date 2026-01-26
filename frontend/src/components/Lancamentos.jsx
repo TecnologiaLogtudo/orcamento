@@ -625,7 +625,7 @@ export default function Lancamentos() {
         mes: mes, // Backend aceita número ou nome, mas número é mais seguro aqui se o backend converter
         ano: parseInt(batchData.ano),
         orcado: parseFloat(batchData.valor),
-        status: 'rascunho' // Novos lançamentos entram como rascunho
+        status: 'aguardando_aprovacao' // Novos lançamentos entram como aguardando aprovação
       }));
 
       await orcamentosAPI.batchUpdate(payload);

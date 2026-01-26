@@ -417,6 +417,8 @@ def batch_update_orcamentos():
                             orcamento.orcado = orc_data['orcado']
                         if 'realizado' in orc_data:
                             orcamento.realizado = orc_data['realizado']
+                        if 'status' in orc_data and orc_data['status']:
+                            orcamento.status = orc_data['status']
                         created += 1
                     else:
                         errors.append('Apenas administradores podem criar novos orçamentos.')
