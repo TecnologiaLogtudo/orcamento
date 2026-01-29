@@ -2,4 +2,10 @@ frontend/dist/
 
 # Ignore environment variable files
 .env*
-
+__pycache__/
+.idea/
+exports/
+db_test.log
+frontend
+.htaccess
+temp/
