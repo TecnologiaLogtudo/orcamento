@@ -190,7 +190,10 @@ export default function Lancamentos() {
       }));
       if (!navAppliedRef.current && years.length > 0) {
         const defaultYear = years.includes(windowStart) ? windowStart : years[0];
-        setFiltros(prev => ({ ...prev, ano: defaultYear }));
+        setFiltros(prev => {
+          if (prev.ano === defaultYear) return prev;
+          return { ...prev, ano: defaultYear };
+        });
       }
     } catch (error) {
       console.error('Erro ao carregar filtros:', error);
