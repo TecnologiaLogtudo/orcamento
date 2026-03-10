@@ -1,14 +1,3 @@
-FROM node:18-alpine AS frontend-builder
-
-WORKDIR /app/frontend
-
-# Instalar dependências de frontend
-COPY frontend/package*.json ./
-RUN npm ci
-
-COPY frontend .
-RUN npm run build
-
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -26,11 +15,11 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código Python
+# Copiar código da aplicação (inclui backend/dist já preparado)
 COPY . .
 
-# Substituir o bundle estático pelo build do stage Node
-COPY --from=frontend-builder /app/frontend/dist ./dist
+# Atenção: antes de construir esta imagem, execute `npm run build` na pasta frontend
+# para que `backend/dist` contenha o bundle atualizado.
 
 # Porta interna
 EXPOSE 5000
