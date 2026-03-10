@@ -7,6 +7,7 @@ import pandas as pd
 import re
 import json
 from difflib import SequenceMatcher
+from decimal import Decimal, InvalidOperation
 
 bp = Blueprint('orcamentos', __name__)
 
@@ -65,6 +66,17 @@ def find_best_category_suggestion(master, grupo, uf, categorias):
         }
 
     return None
+
+def to_decimal(value):
+    if value is None:
+        return Decimal('0')
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal('0')
+
 
 def normalize_months(mes_str):
     """Converte strings de meses (jan, fev, janeiro/fevereiro) em lista de nomes de meses válidos"""
@@ -187,7 +199,7 @@ def import_orcamentos():
                 'key': key,
                 'ano': int(row[ano_col]) if pd.notna(row[ano_col]) else None,
                 'meses': normalize_months(row[mes_col]),
-                'valor': float(row[valor_col]) if pd.notna(row[valor_col]) else 0.0,
+                'valor': to_decimal(row[valor_col]) if pd.notna(row[valor_col]) else Decimal('0'),
                 'categoria_id': categoria.id_categoria if categoria else None
             })
 
