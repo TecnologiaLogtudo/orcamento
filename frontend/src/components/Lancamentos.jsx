@@ -787,7 +787,7 @@ export default function Lancamentos() {
       />
 
       {notification && (
-        <div className={`fixed right-4 top-4 z-50 max-w-sm w-full shadow-lg rounded-md p-3 text-sm font-medium ${notification.type === 'success' ? 'bg-green-50 text-green-800' : notification.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
+        <div className={`fixed right-4 top-4 z-[9999] max-w-sm w-full shadow-lg rounded-md p-3 text-sm font-medium ${notification.type === 'success' ? 'bg-green-50 text-green-800' : notification.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
           {notification.message}
         </div>
       )}
@@ -1174,7 +1174,7 @@ export default function Lancamentos() {
       </div>
     )}
       {isMissingCategoriesModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-40 p-4">
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black bg-opacity-40 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">Resolver categorias faltantes</h3>
@@ -1206,6 +1206,8 @@ export default function Lancamentos() {
                 {missingImportCombos.map(combo => {
                   const comboKey = deriveMissingKey(combo);
                   const selectedAction = missingImportActions[comboKey] || 'skip';
+                  const suggestion = combo.suggestion;
+                  const suggestionLabel = suggestion ? `${suggestion.master || '—'} / ${suggestion.grupo || '—'} (${suggestion.uf || '—'})` : '';
                   return (
                     <div key={comboKey} className="border border-gray-200 rounded-lg p-4">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-gray-700">
@@ -1236,6 +1238,19 @@ export default function Lancamentos() {
                           />
                           Criar categoria e lançar
                         </label>
+                        {suggestion && (
+                          <label className="inline-flex items-center gap-2 text-indigo-900 border border-indigo-100 px-2 py-1 rounded">
+                            <input
+                              type="radio"
+                              name={`missing-action-${comboKey}`}
+                              value={`use_suggestion:${suggestion.id_categoria}`}
+                              checked={selectedAction === `use_suggestion:${suggestion.id_categoria}`}
+                              onChange={() => handleMissingActionChange(comboKey, `use_suggestion:${suggestion.id_categoria}`)}
+                              className="text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-xs font-medium">Usar sugestão: {suggestionLabel}</span>
+                          </label>
+                        )}
                       </div>
                     </div>
                   );

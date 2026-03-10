@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 import re
 import json
+from difflib import SequenceMatcher
 
 bp = Blueprint('orcamentos', __name__)
 
@@ -30,6 +31,40 @@ MONTH_MAP = {
 def build_category_key(master, grupo, uf):
     """Cria uma chave única para combinações de Centro de Custo / Grupo / UF."""
     return f"{(master or '').strip()}|{(grupo or '').strip()}|{(uf or '').strip()}"
+
+def compute_similarity(a, b):
+    return SequenceMatcher(None, (a or '').lower(), (b or '').lower()).ratio()
+
+def find_best_category_suggestion(master, grupo, uf, categorias):
+    if not categorias:
+        return None
+
+    best = None
+    best_score = 0.0
+    base_master = (master or '').strip()
+    base_grupo = (grupo or '').strip()
+    base_uf = (uf or '').strip().lower()
+
+    for categoria in categorias:
+        master_score = compute_similarity(base_master, categoria.master)
+        grupo_score = compute_similarity(base_grupo, categoria.grupo)
+        uf_score = 1.0 if categoria.uf and categoria.uf.strip().lower() == base_uf and base_uf else 0.0
+        total_score = (master_score + grupo_score + uf_score) / 3.0
+        if total_score > best_score:
+            best_score = total_score
+            best = categoria
+
+    if best and best_score >= 0.45:
+        return {
+            'id_categoria': best.id_categoria,
+            'categoria': best.categoria,
+            'master': best.master,
+            'grupo': best.grupo,
+            'uf': best.uf,
+            'score': round(best_score, 3)
+        }
+
+    return None
 
 def normalize_months(mes_str):
     """Converte strings de meses (jan, fev, janeiro/fevereiro) em lista de nomes de meses válidos"""
@@ -73,10 +108,14 @@ def import_orcamentos():
                 parsed_actions = json.loads(missing_actions_payload)
                 if isinstance(parsed_actions, dict):
                     for key, value in parsed_actions.items():
-                        normalized = str(value or '').strip().lower()
-                        if normalized not in ['create', 'skip']:
-                            normalized = 'skip'
-                        missing_actions[key] = normalized
+                        raw_value = str(value or '').strip()
+                        if raw_value.startswith('use_suggestion:'):
+                            missing_actions[key] = raw_value
+                        else:
+                            normalized = raw_value.lower()
+                            if normalized not in ['create', 'skip']:
+                                normalized = 'skip'
+                            missing_actions[key] = normalized
             except (json.JSONDecodeError, TypeError):
                 missing_actions = {}
         
@@ -106,10 +145,18 @@ def import_orcamentos():
                 'error': 'Colunas obrigatórias ausentes. Certifique-se de que o Excel possui: Centro de Custo, Grupo, UF, Ano, Mes(es), Valor'
             }), 400
 
+        all_categories = Categoria.query.all()
+        categoria_by_key = {}
+        categoria_by_id = {}
+        for categoria in all_categories:
+            candidate_key = build_category_key(categoria.master, categoria.grupo, categoria.uf)
+            if candidate_key not in categoria_by_key:
+                categoria_by_key[candidate_key] = categoria
+            categoria_by_id[categoria.id_categoria] = categoria
+
         missing_categories = []
         missing_category_keys = set()
         valid_items = []
-        categoria_cache = {}
         
         # Primeira passada: Validar categorias
         for index, row in df.iterrows():
@@ -119,24 +166,18 @@ def import_orcamentos():
             key = build_category_key(master, grupo, uf)
             
             # Buscar categoria
-            categoria = categoria_cache.get(key)
-            if categoria is None:
-                categoria = Categoria.query.filter_by(
-                    master=master,
-                    grupo=grupo,
-                    uf=uf
-                ).first()
-                categoria_cache[key] = categoria
-            
-            if not categoria:
-                if key not in missing_category_keys:
-                    missing_category_keys.add(key)
-                    missing_categories.append({
-                        'master': master,
-                        'grupo': grupo,
-                        'uf': uf,
-                        'key': key
-                    })
+            categoria = categoria_by_key.get(key)
+            suggestion = None
+            if not categoria and key not in missing_category_keys:
+                missing_category_keys.add(key)
+                suggestion = find_best_category_suggestion(master, grupo, uf, all_categories)
+                missing_categories.append({
+                    'master': master,
+                    'grupo': grupo,
+                    'uf': uf,
+                    'key': key,
+                    'suggestion': suggestion
+                })
             
             valid_items.append({
                 'index': index,
@@ -176,7 +217,16 @@ def import_orcamentos():
                         action = 'create'
                     elif skip_missing:
                         action = 'skip'
-                if action == 'create':
+                if action and action.startswith('use_suggestion:'):
+                    try:
+                        suggestion_id = int(action.split(':', 1)[1])
+                    except (ValueError, IndexError):
+                        continue
+                    suggested = categoria_by_id.get(suggestion_id)
+                    if not suggested:
+                        continue
+                    cat_id = suggested.id_categoria
+                elif action == 'create':
                     if item['key'] in created_category_ids:
                         cat_id = created_category_ids[item['key']]
                     else:
