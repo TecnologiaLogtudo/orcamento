@@ -157,6 +157,19 @@ export const orcamentosAPI = {
   aprovar: async (id) => (await api.post(`/orcamentos/${id}/aprovar`)).data,
   reprovar: async (id, motivo) => (await api.post(`/orcamentos/${id}/reprovar`, { motivo })).data,
   delete: async (id) => (await api.delete(`/orcamentos/${id}`)).data,
+  import: async (file, createMissing = false, skipMissing = false, missingActions = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('create_missing', createMissing ? 'true' : 'false');
+    formData.append('skip_missing', skipMissing ? 'true' : 'false');
+    if (missingActions && typeof missingActions === 'object') {
+      formData.append('missing_actions', JSON.stringify(missingActions));
+    }
+    const response = await api.post('/orcamentos/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
 
 // ============= DASHBOARD =============

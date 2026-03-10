@@ -8,7 +8,9 @@ WORKDIR /app
 # Dependências do sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Dependências Python
 COPY requirements.txt .

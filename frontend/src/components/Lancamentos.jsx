@@ -72,6 +72,11 @@ export default function Lancamentos() {
     valor: '',
     meses: []
   });
+  const fileInputRef = useRef(null);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [missingImportCombos, setMissingImportCombos] = useState([]);
+  const [missingImportActions, setMissingImportActions] = useState({});
+  const [isMissingCategoriesModalOpen, setIsMissingCategoriesModalOpen] = useState(false);
 
   const loadRequestIdRef = useRef(0);
 
@@ -596,7 +601,96 @@ export default function Lancamentos() {
     return badges[status] || badges.rascunho;
   };
 
+  const deriveMissingKey = (combo) => {
+    if (combo?.key) return combo.key;
+    const masterPart = (combo?.master || '').trim();
+    const grupoPart = (combo?.grupo || '').trim();
+    const ufPart = (combo?.uf || '').trim();
+    return `${masterPart}|${grupoPart}|${ufPart}`;
+  };
+
+  const clearImportState = () => {
+    setPendingImportFile(null);
+    setMissingImportCombos([]);
+    setMissingImportActions({});
+    setIsMissingCategoriesModalOpen(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const submitImportFile = async (file, actions = null) => {
+    if (!file) return;
+    setSaving(true);
+    try {
+      const response = await orcamentosAPI.import(file, false, false, actions);
+      if (response.status === 'missing_categories' && Array.isArray(response.missing)) {
+        const combos = response.missing.map(item => ({
+          ...item,
+          key: deriveMissingKey(item)
+        }));
+        const defaultActions = {};
+        combos.forEach(combo => {
+          defaultActions[combo.key] = 'skip';
+        });
+        setPendingImportFile(file);
+        setMissingImportCombos(combos);
+        setMissingImportActions(defaultActions);
+        setIsMissingCategoriesModalOpen(true);
+        showNotification('info', 'Algumas categorias estão faltando. Escolha se elas devem ser criadas ou ignoradas.');
+        return;
+      }
+      showNotification('success', response.message || 'Importação concluída com sucesso');
+      clearImportState();
+      loadOrcamentos();
+    } catch (error) {
+      showNotification('error', 'Erro ao importar Excel: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFileInputChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await submitImportFile(file);
+    if (event.target) event.target.value = '';
+  };
+
+  const handleMissingActionChange = (key, action) => {
+    setMissingImportActions(prev => ({
+      ...prev,
+      [key]: action
+    }));
+  };
+
+  const applyMissingActionToAll = (action) => {
+    setMissingImportActions(prev => {
+      const next = { ...prev };
+      missingImportCombos.forEach(combo => {
+        const comboKey = deriveMissingKey(combo);
+        next[comboKey] = action;
+      });
+      return next;
+    });
+  };
+
+  const handleMissingConfirm = async () => {
+    setIsMissingCategoriesModalOpen(false);
+    if (!pendingImportFile) {
+      showNotification('error', 'Arquivo não disponível para reenvio.');
+      return;
+    }
+    await submitImportFile(pendingImportFile, missingImportActions);
+  };
+
+  const handleMissingCancel = () => {
+    clearImportState();
+    setIsMissingCategoriesModalOpen(false);
+  };
+
   const handleOpenBatchModal = async () => {
+    clearImportState();
     setIsBatchModalOpen(true);
     // Reset form
     setBatchData({
@@ -683,6 +777,13 @@ export default function Lancamentos() {
         title={promptModal.title}
         message={promptModal.message}
         onConfirm={promptModal.onConfirm}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleFileInputChange}
       />
 
       {notification && (
@@ -971,6 +1072,24 @@ export default function Lancamentos() {
             </div>
             
             <div className="p-6 space-y-6">
+              <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Importar orçamentos via Excel</p>
+                    <p className="text-xs text-gray-500">
+                      O arquivo precisa conter Centro de Custo, Grupo, UF, Ano, Mes(es) e Valor. Meses podem vir em formatos como "janeiro, fevereiro" ou "jan / fev / mar".
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-indigo-600 rounded-md bg-white text-indigo-600 text-sm font-medium hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    Importar Excel
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
@@ -1049,6 +1168,96 @@ export default function Lancamentos() {
               >
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                 Lançar Orçamentos
+              </button>
+            </div>
+        </div>
+      </div>
+    )}
+      {isMissingCategoriesModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-40 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Resolver categorias faltantes</h3>
+              <button onClick={handleMissingCancel} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Algumas combinações de Centro de Custo / Grupo / UF não existem no cadastro. Escolha se cada item deve ser criado como categoria ou se o lançamento deve ser ignorado.
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => applyMissingActionToAll('create')}
+                  className="px-3 py-1 border border-indigo-500 rounded-full text-indigo-600 font-medium hover:bg-indigo-50"
+                >
+                  Criar todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyMissingActionToAll('skip')}
+                  className="px-3 py-1 border border-gray-300 rounded-full text-gray-600 font-medium hover:bg-gray-100"
+                >
+                  Recusar todos
+                </button>
+              </div>
+              <div className="space-y-3">
+                {missingImportCombos.map(combo => {
+                  const comboKey = deriveMissingKey(combo);
+                  const selectedAction = missingImportActions[comboKey] || 'skip';
+                  return (
+                    <div key={comboKey} className="border border-gray-200 rounded-lg p-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-gray-700">
+                        <p><span className="font-semibold text-gray-900">Centro de Custo:</span> {combo.master || '—'}</p>
+                        <p><span className="font-semibold text-gray-900">Grupo:</span> {combo.grupo || '—'}</p>
+                        <p><span className="font-semibold text-gray-900">UF:</span> {combo.uf || '—'}</p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                        <label className="inline-flex items-center gap-2 text-gray-600">
+                          <input
+                            type="radio"
+                            name={`missing-action-${comboKey}`}
+                            value="skip"
+                            checked={selectedAction === 'skip'}
+                            onChange={() => handleMissingActionChange(comboKey, 'skip')}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
+                          Recusar lançamento
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-gray-600">
+                          <input
+                            type="radio"
+                            name={`missing-action-${comboKey}`}
+                            value="create"
+                            checked={selectedAction === 'create'}
+                            onChange={() => handleMissingActionChange(comboKey, 'create')}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
+                          Criar categoria e lançar
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleMissingCancel}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleMissingConfirm}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={16} />}
+                Confirmar escolhas
               </button>
             </div>
           </div>

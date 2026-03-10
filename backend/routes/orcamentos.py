@@ -3,10 +3,250 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Usuario, Categoria, Orcamento, Log
 from datetime import datetime
 
+import pandas as pd
+import re
+import json
+
 bp = Blueprint('orcamentos', __name__)
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
          'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+MONTH_MAP = {
+    'jan': 'Janeiro', 'janeiro': 'Janeiro',
+    'fev': 'Fevereiro', 'fevereiro': 'Fevereiro',
+    'mar': 'Março', 'março': 'Março',
+    'abr': 'Abril', 'abril': 'Abril',
+    'mai': 'Maio', 'maio': 'Maio',
+    'jun': 'Junho', 'junho': 'Junho',
+    'jul': 'Julho', 'julho': 'Julho',
+    'ago': 'Agosto', 'agosto': 'Agosto',
+    'set': 'Setembro', 'setembro': 'Setembro',
+    'out': 'Outubro', 'outubro': 'Outubro',
+    'nov': 'Novembro', 'novembro': 'Novembro',
+    'dez': 'Dezembro', 'dezembro': 'Dezembro'
+}
+
+def build_category_key(master, grupo, uf):
+    """Cria uma chave única para combinações de Centro de Custo / Grupo / UF."""
+    return f"{(master or '').strip()}|{(grupo or '').strip()}|{(uf or '').strip()}"
+
+def normalize_months(mes_str):
+    """Converte strings de meses (jan, fev, janeiro/fevereiro) em lista de nomes de meses válidos"""
+    if pd.isna(mes_str):
+        return []
+    
+    # Substituir delimitadores comuns por espaços
+    normalized = re.sub(r'[,/;]', ' ', str(mes_str).lower())
+    parts = normalized.split()
+    
+    result = []
+    for part in parts:
+        # Remover pontos (ex: jan.)
+        clean_part = part.strip('.')
+        if clean_part in MONTH_MAP:
+            result.append(MONTH_MAP[clean_part])
+    
+    return list(set(result)) # Remover duplicatas
+
+@bp.route('/orcamentos/import', methods=['POST'])
+@jwt_required()
+def import_orcamentos():
+    """Importa orçamentos de arquivo Excel"""
+    try:
+        user_id = get_jwt_identity()
+        current_user = Usuario.query.get(user_id)
+        
+        if current_user.papel != 'admin':
+            return jsonify({'error': 'Acesso negado'}), 403
+            
+        if 'file' not in request.files:
+            return jsonify({'error': 'Nenhum arquivo enviado'}), 400
+            
+        file = request.files['file']
+        create_missing = request.form.get('create_missing') == 'true'
+        skip_missing = request.form.get('skip_missing') == 'true'
+        missing_actions_payload = request.form.get('missing_actions')
+        missing_actions = {}
+        if missing_actions_payload:
+            try:
+                parsed_actions = json.loads(missing_actions_payload)
+                if isinstance(parsed_actions, dict):
+                    for key, value in parsed_actions.items():
+                        normalized = str(value or '').strip().lower()
+                        if normalized not in ['create', 'skip']:
+                            normalized = 'skip'
+                        missing_actions[key] = normalized
+            except (json.JSONDecodeError, TypeError):
+                missing_actions = {}
+        
+        if file.filename == '':
+            return jsonify({'error': 'Nenhum arquivo selecionado'}), 400
+            
+        df = pd.read_excel(file)
+        
+        # Mapeamento de colunas (case-insensitive e flexível)
+        col_map = {col.lower(): col for col in df.columns}
+        
+        def get_col(names):
+            for name in names:
+                if name.lower() in col_map:
+                    return col_map[name.lower()]
+            return None
+
+        cc_col = get_col(['Centro de Custo', 'CC', 'Master'])
+        grupo_col = get_col(['Grupo'])
+        uf_col = get_col(['UF'])
+        ano_col = get_col(['Ano'])
+        mes_col = get_col(['Mes(es)', 'Mes', 'Mês', 'Meses'])
+        valor_col = get_col(['Valor', 'Orçado'])
+
+        if not all([cc_col, grupo_col, uf_col, ano_col, mes_col, valor_col]):
+            return jsonify({
+                'error': 'Colunas obrigatórias ausentes. Certifique-se de que o Excel possui: Centro de Custo, Grupo, UF, Ano, Mes(es), Valor'
+            }), 400
+
+        missing_categories = []
+        missing_category_keys = set()
+        valid_items = []
+        categoria_cache = {}
+        
+        # Primeira passada: Validar categorias
+        for index, row in df.iterrows():
+            master = str(row[cc_col]).strip() if pd.notna(row[cc_col]) else None
+            grupo = str(row[grupo_col]).strip() if pd.notna(row[grupo_col]) else None
+            uf = str(row[uf_col]).strip() if pd.notna(row[uf_col]) else None
+            key = build_category_key(master, grupo, uf)
+            
+            # Buscar categoria
+            categoria = categoria_cache.get(key)
+            if categoria is None:
+                categoria = Categoria.query.filter_by(
+                    master=master,
+                    grupo=grupo,
+                    uf=uf
+                ).first()
+                categoria_cache[key] = categoria
+            
+            if not categoria:
+                if key not in missing_category_keys:
+                    missing_category_keys.add(key)
+                    missing_categories.append({
+                        'master': master,
+                        'grupo': grupo,
+                        'uf': uf,
+                        'key': key
+                    })
+            
+            valid_items.append({
+                'index': index,
+                'master': master,
+                'grupo': grupo,
+                'uf': uf,
+                'key': key,
+                'ano': int(row[ano_col]) if pd.notna(row[ano_col]) else None,
+                'meses': normalize_months(row[mes_col]),
+                'valor': float(row[valor_col]) if pd.notna(row[valor_col]) else 0.0,
+                'categoria_id': categoria.id_categoria if categoria else None
+            })
+
+        # Se houver categorias faltando e o usuário ainda não decidiu o que fazer
+        if missing_categories and not (create_missing or skip_missing or missing_actions):
+            return jsonify({
+                'status': 'missing_categories',
+                'missing': missing_categories,
+                'message': 'Algumas categorias (Centro de Custo/Grupo) não existem.'
+            }), 200
+
+        # Processar importação
+        created_count = 0
+        updated_count = 0
+        categories_created = 0
+        created_category_ids = {}
+        
+        for item in valid_items:
+            cat_id = item['categoria_id']
+            
+            if not cat_id:
+                action = None
+                if missing_actions:
+                    action = missing_actions.get(item['key'])
+                if not action:
+                    if create_missing:
+                        action = 'create'
+                    elif skip_missing:
+                        action = 'skip'
+                if action == 'create':
+                    if item['key'] in created_category_ids:
+                        cat_id = created_category_ids[item['key']]
+                    else:
+                        new_cat = Categoria(
+                            categoria=item['grupo'],  # Usando grupo como nome da categoria por padrão
+                            master=item['master'],
+                            grupo=item['grupo'],
+                            uf=item['uf']
+                        )
+                        db.session.add(new_cat)
+                        db.session.flush()  # Para pegar o ID
+                        cat_id = new_cat.id_categoria
+                        created_category_ids[item['key']] = cat_id
+                        categories_created += 1
+                elif action == 'skip' or action is None:
+                    continue
+                else:
+                    continue  # Segurança
+
+            for mes in item['meses']:
+                orcamento = Orcamento.query.filter_by(
+                    id_categoria=cat_id,
+                    mes=mes,
+                    ano=item['ano']
+                ).first()
+                
+                if orcamento:
+                    if orcamento.status != 'aprovado':
+                        orcamento.orcado = item['valor']
+                        orcamento.atualizado_por = user_id
+                        updated_count += 1
+                else:
+                    orcamento = Orcamento(
+                        id_categoria=cat_id,
+                        mes=mes,
+                        ano=item['ano'],
+                        orcado=item['valor'],
+                        criado_por=user_id,
+                        status='aguardando_aprovacao'
+                    )
+                    db.session.add(orcamento)
+                    created_count += 1
+
+        db.session.commit()
+        
+        # Log
+        log = Log(
+            id_usuario=current_user.id_usuario,
+            acao=f'Importação Excel: {created_count} criados, {updated_count} atualizados, {categories_created} categorias criadas',
+            tabela_afetada='orcamentos',
+            detalhes={
+                'criados': created_count,
+                'atualizados': updated_count,
+                'categorias_criadas': categories_created,
+                'arquivo': file.filename
+            }
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Importação concluída com sucesso',
+            'created': created_count,
+            'updated': updated_count,
+            'categories_created': categories_created
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/orcamentos', methods=['GET'])
 @jwt_required()

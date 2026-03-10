@@ -7,7 +7,9 @@ from models import db, Orcamento
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
 
-def delete_all_lancamentos():
+@click.command()
+@click.option('--yes', is_flag=True, help='Pular o pedido de confirmação.')
+def delete_all_lancamentos(yes):
     """
     Script para deletar todos os lançamentos (orçamentos).
     Exige confirmação do usuário antes de executar.
@@ -17,16 +19,17 @@ def delete_all_lancamentos():
     app = create_app(config_name)
 
     with app.app_context():
-        if not click.confirm(
-            click.style(
-                'ATENÇÃO: Você está prestes a deletar TODOS os lançamentos (orçamentos) do banco de dados.\n'
-                'Esta ação NÃO PODE ser desfeita.\n\n'
-                'Deseja realmente continuar?',
-                fg='red', bold=True
-            )
-        ):
-            click.echo('Operação cancelada pelo usuário.')
-            return
+        if not yes:
+            if not click.confirm(
+                click.style(
+                    'ATENÇÃO: Você está prestes a deletar TODOS os lançamentos (orçamentos) do banco de dados.\n'
+                    'Esta ação NÃO PODE ser desfeita.\n\n'
+                    'Deseja realmente continuar?',
+                    fg='red', bold=True
+                )
+            ):
+                click.echo('Operação cancelada pelo usuário.')
+                return
 
         click.echo('🔍 Processando... Deletando todos os lançamentos...')
         
